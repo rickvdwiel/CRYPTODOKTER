@@ -86,3 +86,29 @@ cryptodokter/
 
 ## Licentie
 Nog niet gekozen. All rights reserved.
+
+## Fase 2 — Paper-bot (virtueel, geen echt geld)
+
+De bot handelt **alleen op papier**: er gaan nooit orders naar een exchange en er
+zijn geen API-keys nodig. Hij gebruikt de radarscore als koopsignaal en rekent
+met echte fees, slippage, stop-loss, take-profit en een trailing stop.
+
+```bash
+python -m bot.run_bot --status          # portefeuille tonen
+python -m bot.run_bot --scan --dry-run  # zien wat hij ZOU kopen
+python -m bot.run_bot --scan            # radar draaien en virtueel kopen
+python -m bot.run_bot --tick            # prijzen verversen + exit-regels toepassen
+python -m bot.run_bot --buy PONS --amount 10
+python -m bot.run_bot --sell PONS
+python -m bot.run_bot --reset           # terug naar het startbudget
+```
+
+Instellingen (budget, risicoregels, koopfilter) staan in `bot/config.py`.
+De stand komt in `data/paper_portfolio.json`, elke trade in `data/paper_trades.csv`.
+Laat dit weken draaien vóór je overweegt om echt geld te riskeren.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -t . -q
+```

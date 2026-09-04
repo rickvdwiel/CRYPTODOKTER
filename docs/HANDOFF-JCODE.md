@@ -145,4 +145,18 @@ cryptodokter/
   - **Tests**: `tests/test_radar.py`, 14 tests, netwerkvrij (grok.parse blok+JSON,
     save_raw, signals.score/risk_label, momentum.check_symbol/sweep met mocks).
     Draaien: `.venv/bin/python -m unittest discover -s tests -t . -q`.
-- **Volgende stap**: fase 2 — `bot/` paper-portefeuille (zie §5).
+- **[jcode, sep 2026] Fase 2 gebouwd — paper-bot draait:**
+  - `bot/config.py`: €50 startbudget, max 5 posities, 20%/positie, fee 0,25%,
+    slippage 1% (5% bij liquiditeit < $50k), stop-loss -25%, take-profit +60%,
+    trailing -20%, max 14 dagen hold, koopfilter score >= 35 en liquiditeit >= $25k.
+  - `bot/portfolio.py`: papieren portefeuille met fees/slippage, trailing-high,
+    exit-regels, JSON-state (`data/paper_portfolio.json`) en CSV-logboek
+    (`data/paper_trades.csv`). Beide staan in `.gitignore`, dus lokaal.
+  - `bot/run_bot.py`: `--status`, `--tick`, `--scan [--dry-run]`, `--buy`,
+    `--sell`, `--reset`. Geen keys, geen echte orders: alleen publieke data.
+  - `tests/test_bot.py`: 22 tests (koop/verkoop, fees, slippage-tiers, alle
+    exit-regels, persistentie, kapot state-bestand, prijs-helpers). Totaal 36 groen.
+  - **Live gevalideerd**: `--scan` kocht virtueel AMC (score 35) voor €10;
+    `--tick` verversde de prijs en zag terecht geen exit-signaal.
+- **Volgende stap**: fase 3 — dashboard/website (`cryptodokter.nl`), plus
+  `backtest/engine.py` om de exit-regels historisch te toetsen.
