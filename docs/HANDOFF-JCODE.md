@@ -158,5 +158,16 @@ cryptodokter/
     exit-regels, persistentie, kapot state-bestand, prijs-helpers). Totaal 36 groen.
   - **Live gevalideerd**: `--scan` kocht virtueel AMC (score 35) voor €10;
     `--tick` verversde de prijs en zag terecht geen exit-signaal.
-- **Volgende stap**: fase 3 — dashboard/website (`cryptodokter.nl`), plus
-  `backtest/engine.py` om de exit-regels historisch te toetsen.
+- **[jcode, sep 2026] Backtest-engine gebouwd:**
+  - `backtest/engine.py`: haalt publieke Bitvavo-candles op
+    (`/v2/<markt>/candles`), instap via breakout (close > hoogste high van de
+    laatste N bars), exits volgens dezelfde regels als de paper-bot, met fees en
+    slippage. Stop-loss wordt pessimistisch vóór take-profit getest.
+  - CLI: `python -m backtest.engine --symbol PEPE-EUR --interval 1h --limit 1000`
+    (met `--sl/--tp/--trail/--lookback/--max-hold` om regels te variëren).
+  - **Live gevalideerd**: PEPE-EUR 1h/1000 candles → 2 trades, +€2,16;
+    BTC-EUR 4h/500 → 1 trade, -€0,47. De engine geeft ook winrate en exit-redenen.
+  - `tests/test_backtest.py`: 14 tests (breakout, alle exit-regels, kosten,
+    stats, netwerkfout). **Totaal nu 50 tests groen.**
+- **Volgende stap**: fase 3 — dashboard/website voor `cryptodokter.nl`
+  (radar-rapporten, watchlist, paper-portefeuille en alerts in de browser).

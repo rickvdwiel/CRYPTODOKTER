@@ -107,6 +107,19 @@ Instellingen (budget, risicoregels, koopfilter) staan in `bot/config.py`.
 De stand komt in `data/paper_portfolio.json`, elke trade in `data/paper_trades.csv`.
 Laat dit weken draaien vóór je overweegt om echt geld te riskeren.
 
+## Backtest — werken de regels eigenlijk?
+
+Test de exit-regels op echte historische Bitvavo-candles, inclusief fees en slippage:
+
+```bash
+python -m backtest.engine --symbol PEPE-EUR --interval 1h --limit 1000
+python -m backtest.engine --symbol BTC-EUR --sl -15 --tp 40 --trail -10
+```
+
+Je krijgt aantal trades, winrate, resultaat in euro's en waaróm elke positie
+sloot (stop-loss, take-profit, trailing of max-hold). Een backtest is het
+verleden, geen belofte.
+
 ## Tests
 
 ```bash
