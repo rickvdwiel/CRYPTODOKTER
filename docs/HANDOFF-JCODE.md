@@ -186,3 +186,16 @@ cryptodokter/
   (reverse proxy + HTTPS), alerts (mail/Telegram) bij een hoge radarscore, en
   de paper-bot periodiek draaien (cron/launchd) zodat er echte trackrecord
   ontstaat vóór er ooit echt geld in gaat.
+- **[jcode, sep 2026] Handoff voor Grok + context-dump:**
+  - `docs/HANDOFF-GROK.md`: handoff toegespitst op SuperGrok (chat, geen API-key).
+    Bevat het exacte antwoordformaat dat `radar/grok.py::parse()` accepteert,
+    de datacontracten (`analyze_token`, scoring, bot-config), de valkuilen
+    (Python 3.9, geen ccxt, DexScreener-beschrijvingen, rate limits) en een
+    prioriteitenlijst: trackrecord opbouwen, X-signaal kwalificeren op
+    accountbereik, alerts, backtest-sweep, publiek hosten.
+  - `tools/context_dump.py`: vat de codebase samen (AST: publieke functies,
+    klassen, config-constanten) om in één keer in een Grok-chat te plakken.
+    `--full` voegt de kern-broncode toe, `--module` filtert per pakket.
+    Compact ~13k tekens, volledig ~42k: allebei chat-proof.
+  - `tests/test_tools.py`: 11 tests. **Totaal 72 groen.**
+

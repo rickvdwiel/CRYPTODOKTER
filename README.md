@@ -130,6 +130,16 @@ python -m web.server --port 8080  # andere poort
 Toont je papieren portefeuille, de actuele radar-kandidaten met risico-labels en
 je watchlist. Alleen lezen: het dashboard handelt niet, ook niet op papier.
 
+## Grok gebruiken
+
+Heb je SuperGrok? Lees `docs/HANDOFF-GROK.md`. Kort:
+
+```bash
+python -m radar.run_radar --grok-prompt   # prompt kopiëren naar Grok
+python -m radar.run_radar --grok          # antwoord terugplakken (Ctrl-D)
+python -m tools.context_dump              # codebase samenvatten voor in de chat
+```
+
 ## Tests
 
 ```bash
