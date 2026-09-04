@@ -1,0 +1,6 @@
+# Alleen lichte, pure-Python dependencies — geen cryptography/rust-builds nodig.
+requests>=2.31
+beautifulsoup4>=4.12
+
+# Optioneel (voor extra exchanges naast Bitvavo-REST):
+# installeren met:  pip install ccxt  (vereist werkend OpenSSL/pkg-config op dit systeem)

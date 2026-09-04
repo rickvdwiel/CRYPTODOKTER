@@ -1,0 +1,4 @@
+# Watchlist: token-naam/adres, optioneel exchange-symbool (komma)
+# Voorbeeld:
+# PONS
+# DOGE, DOGE

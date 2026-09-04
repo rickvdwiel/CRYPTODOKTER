@@ -1,0 +1,1 @@
+# Backtest-engine volgt zodra de radar loopt (zie docs/BOT-CONSOLIDATION.md).
