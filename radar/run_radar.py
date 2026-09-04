@@ -67,7 +67,7 @@ def analyze_token(token: str, symbol: str | None = None, show_x: bool = True) ->
     return info
 
 
-def _run_candidates(candidates: list[tuple[str, str]]], source_label: str) -> int:
+def _run_candidates(candidates: list[tuple[str, str]], source_label: str) -> int:
     """Analyseer kandidaten voluit en print rangorde + rapporten. Herbruikt
     door --scan en --grok. 'candidates' = lijst van (token-of-adres, hint)."""
     reports = []
@@ -103,7 +103,7 @@ def scan() -> int:
 
     # Kandidaten: DexScreener trending tokens
     profiles = dexscreener.trending_tokens(limit=config.DEX_TOP_N)
-    candidates: list[tuple[str, str]]] = []
+    candidates: list[tuple[str, str]] = []
     for p in profiles:
         addr = p.get("tokenAddress", "")
         if addr:
