@@ -120,6 +120,16 @@ Je krijgt aantal trades, winrate, resultaat in euro's en waaróm elke positie
 sloot (stop-loss, take-profit, trailing of max-hold). Een backtest is het
 verleden, geen belofte.
 
+## Dashboard (cryptodokter.nl)
+
+```bash
+python -m web.server              # → http://127.0.0.1:8000
+python -m web.server --port 8080  # andere poort
+```
+
+Toont je papieren portefeuille, de actuele radar-kandidaten met risico-labels en
+je watchlist. Alleen lezen: het dashboard handelt niet, ook niet op papier.
+
 ## Tests
 
 ```bash

@@ -169,5 +169,20 @@ cryptodokter/
     BTC-EUR 4h/500 → 1 trade, -€0,47. De engine geeft ook winrate en exit-redenen.
   - `tests/test_backtest.py`: 14 tests (breakout, alle exit-regels, kosten,
     stats, netwerkfout). **Totaal nu 50 tests groen.**
-- **Volgende stap**: fase 3 — dashboard/website voor `cryptodokter.nl`
-  (radar-rapporten, watchlist, paper-portefeuille en alerts in de browser).
+- **[jcode, sep 2026] Fase 3 — dashboard voor cryptodokter.nl staat:**
+  - `web/server.py`: HTTP-server op alléén de standaardbibliotheek (geen Flask).
+    `python -m web.server` → http://127.0.0.1:8000 (`--host/--port` beschikbaar).
+  - Endpoints: `/` (dark-mode dashboard), `/api/portfolio`, `/api/radar`,
+    `/api/watchlist`, `/api/health`. Antwoorden 5 minuten gecachet zodat de
+    gratis bronnen niet worden gehamerd; de pagina ververst zelf elke minuut.
+  - Toont papieren portefeuille (waarde, rendement, posities met P&L),
+    radar-kandidaten met score/liquiditeit/risico-label + chartlink, en de
+    watchlist. Alleen lezen: het dashboard kan niets kopen of verkopen.
+  - `tests/test_web.py`: 11 tests, inclusief een echte HTTP-server op een vrije
+    poort (index, JSON-endpoints, 404, offline-pad, cache). **Totaal 61 groen.**
+  - **Live gevalideerd**: alle endpoints geven 200 met echte data
+    (radar ~13s koud, daarna direct uit cache).
+- **Volgende stap (suggesties)**: publiek hosten van `cryptodokter.nl`
+  (reverse proxy + HTTPS), alerts (mail/Telegram) bij een hoge radarscore, en
+  de paper-bot periodiek draaien (cron/launchd) zodat er echte trackrecord
+  ontstaat vóór er ooit echt geld in gaat.
