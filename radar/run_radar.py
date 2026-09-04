@@ -153,5 +153,60 @@ def grok_prompt() -> int:
     return 0
 
 
+def deep_dive(token: str, symbol: str | None) -> int:
+    print(f">> CryptoDokter Radar -- deep-dive: {token}\n")
+    info = analyze_token(token, symbol)
+    print_report(token, info)
+    print(DISCLAIMER)
+    return 0
+
+
+def watchlist() -> int:
+    wl = Path(__file__).resolve().parent.parent / "data" / "watchlist.txt"
+    if not wl.exists():
+        print(f"Geen watchlist gevonden op {wl}")
+        return 1
+    for line in wl.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(",")
+        token, symbol = parts[0].strip(), (parts[1].strip() if len(parts) > 1 else None)
+        print_run_header(line)
+        info = analyze_token(token, symbol)
+        print_report(token, info)
+    print(DISCLAIMER)
+    return 0
+
+
+def print_run_header(line: str) -> None:
+    print("#" * 62)
+    print(f"# WATCHLIST-ITEM: {line}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="CryptoDokter Radar")
+    ap.add_argument("--scan", action="store_true", help="scan nieuwe kandidaten")
+    ap.add_argument("--token", type=str, help="token-naam/adres/symbool")
+    ap.add_argument("--symbol", type=str, help="exchange-symbool (bv DOGE)")
+    ap.add_argument("--grok-prompt", action="store_true",
+                     help="toon jacht-prompt voor Grok (SuperGrok-workflow)")
+    ap.add_argument("--grok", nargs="?", const="-", default=None, metavar="FILE",
+                     help="verwerk Grok-kandidaten (stdin of bestand)")
+    ap.add_argument("--watchlist", action="store_true", help="run watchlist")
+    args = ap.parse_args(argv)
+
+    if args.grok_prompt:
+        return grok_prompt()
+    if args.grok is not None:
+        raw = sys.stdin.read() if args.grok == "-" else Path(args.grok).read_text(encoding="utf-8")
+        return run_grok(raw)
+    if args.watchlist:
+        return watchlist()
+    if args.token:
+        return deep_dive(args.token, args.symbol)
+    return scan()
+
+
 if __name__ == "__main__":
     sys.exit(main())
