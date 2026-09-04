@@ -39,6 +39,11 @@ def analyze_token(token: str, symbol: str | None = None, show_x: bool = True) ->
     pair = dexscreener.best_pair(token, query=sym)
     if pair:
         info["dex"] = dexscreener.pair_into(pair)
+        # Contract-adres of lange naam? Neem het echte ticker-symbool over.
+        dex_sym = info["dex"].get("symbol") or ""
+        if dex_sym and (len(sym) > 12 or sym.startswith("0X")):
+            sym = dex_sym.upper()
+            info["symbol"] = sym
 
     # Laag 2 (exchange)
     info["exch"] = check_symbol(sym)
@@ -67,35 +72,70 @@ def analyze_token(token: str, symbol: str | None = None, show_x: bool = True) ->
     return info
 
 
+def _short_name(token: str, info: dict) -> str:
+    """Leesbare naam: liefst het DEX-symbool, anders een ingekort token/adres."""
+    sym = (info.get("dex") or {}).get("symbol") or ""
+    if sym:
+        return sym.upper()
+    token = " ".join(token.split())
+    if len(token) > 20:
+        return token[:12] + "…" + token[-4:]
+    return token.upper()
+
+
 def _run_candidates(candidates: list[tuple[str, str]], source_label: str) -> int:
     """Analyseer kandidaten voluit en print rangorde + rapporten. Herbruikt
     door --scan en --grok. 'candidates' = lijst van (token-of-adres, hint)."""
     reports = []
     for addr, hint in candidates[:config.MAX_SCAN_TOKENS]:
-        token = addr if len(addr) == 42 else hint or addr
-        name = token[:16]
-        print(f".. analyseren: {name}")
+        token = addr
+        print(f".. analyseren: {_short_name(token, {})}")
         info = analyze_token(token)
-        reports.append((info.get("symbol", name), info["score"]["total"],
+        name = _short_name(token, info)
+        reports.append((name, info["score"]["total"],
                         info.get("risk", ""), info))
     reports.sort(key=lambda r: r[1], reverse=True)
     print("\n" + "=" * 62)
     print(f"  RANGORDE {source_label} (hoogste score eerst)")
     print("=" * 62)
-    for sym, total, risk, info in reports:
-        flag = "🔴" if "RUG" in risk else ("🟡" if "iets" in risk else "🟢")
+    for sym, total, risk, _info in reports:
+        if "RUG" in risk:
+            flag = "🔴"
+        elif "onbekend" in risk:
+            flag = "⚪"
+        elif "iets" in risk:
+            flag = "🟡"
+        else:
+            flag = "🟢"
         line = f"  {flag} {sym:<16} {total:>5}/100   {risk}"
         print(line)
     print()
     print("Details per kandidaat:")
     print()
     for _sym, _total, _risk, info in reports:
-        print_report(info.get("symbol", _sym), info)
+        print_report(_sym, info)
     print(DISCLAIMER)
     return 0
 
 
+def _online() -> bool:
+    """Snelle check of we überhaupt internet hebben (DNS/TCP naar Bitvavo)."""
+    import socket
+    for host in ("api.bitvavo.com", "api.dexscreener.com"):
+        try:
+            socket.create_connection((host, 443), timeout=4).close()
+            return True
+        except OSError:
+            continue
+    return False
+
+
 def scan() -> int:
+    if not _online():
+        print("Geen internetverbinding gevonden. De radar heeft live data nodig\n"
+              "(Bitvavo + DexScreener). Controleer je verbinding en probeer opnieuw.\n"
+              "Tip: `--grok-prompt` werkt wél offline (die toont alleen de prompt).")
+        return 1
     print(f">> CryptoDokter Radar --scan ({config.DEX_TOP_N} Dex-trending + "
           f"Bitvavo micro-cap sweep)\n")
     print(DISCLAIMER)

@@ -101,7 +101,8 @@ def parse(text: str) -> list[dict[str, Any]]:
 
 def save_raw(text: str) -> Path:
     """Bewaar onverwerkte Grok-output zodat niets verloren gaat."""
-    out = Path(__file__.resolve().parent.parent / "data" /
-                f"grok_raw_{datetime.now():%Y%m%d_%H%M%S}.txt")
+    data_dir = Path(__file__).resolve().parent.parent / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    out = data_dir / f"grok_raw_{datetime.now():%Y%m%d_%H%M%S}.txt"
     out.write_text(text, encoding="utf-8")
     return out

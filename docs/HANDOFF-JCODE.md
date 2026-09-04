@@ -29,6 +29,8 @@ en risico-labels toont — zonder de gebruiker te misleiden.
 | `radar/signals.py` (score 0-100 + labels)   | ✅ aanwezig                                  |
 | `.venv` + `requirements.txt`                | ✅ installatie schoon (lichte deps)          |
 | GitHub `main`                              | ✅ gepusht                                    |
+| `tests/test_radar.py` (14 tests, offline)   | ✅ groen                                     |
+| Live netwerk-run `--scan`/`--token`/`--grok` | ✅ gevalideerd (sep 2026)                   |
 
 ## 3. Hoe draaien (vanuit projectmap)
 
@@ -127,3 +129,20 @@ cryptodokter/
 ## Changelog (work in progress)
 - **[handoff]**: stand van zaken hierboven; los de open eindes (netwerk-run +
   tests) op. Vanaf hier verder bouwen.
+- **[jcode, sep 2026] Open eindes 1-3 afgerond:**
+  - **Netwerk-run gevalideerd**: `--scan`, `--token PONS`, `--grok` (stdin) draaien
+    live. Bitvavo `/v2/ticker/24h` en DexScreener `token-profiles/latest/v1`
+    geven de verwachte responses; DEX-liquiditeit, nieuws en X-trend komen binnen.
+  - **Bug: `grok.save_raw()` crashte** (`__file__.resolve()` op een `str`).
+    Opgelost + `data/` wordt nu automatisch aangemaakt.
+  - **Bug: kandidaatnamen** in `--scan` toonden hele DexScreener-beschrijvingen
+    (regels van 200+ tekens). Nu `_short_name()`: echte ticker uit DEX-data,
+    anders een ingekort adres (`0x12345678…abcd`).
+  - **Offline**: `--scan` doet een snelle TCP-check en geeft een nette NLse
+    melding + exit-code 1 in plaats van een stacktrace.
+  - **Rangorde**: aparte ⚪-vlag voor 'onbekend/geen liquidity' (stond op 🟢).
+  - **urllib3 LibreSSL-waarschuwing** onderdrukt in `radar/__init__.py`.
+  - **Tests**: `tests/test_radar.py`, 14 tests, netwerkvrij (grok.parse blok+JSON,
+    save_raw, signals.score/risk_label, momentum.check_symbol/sweep met mocks).
+    Draaien: `.venv/bin/python -m unittest discover -s tests -t . -q`.
+- **Volgende stap**: fase 2 — `bot/` paper-portefeuille (zie §5).
