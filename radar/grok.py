@@ -53,7 +53,7 @@ def _clean(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "")).strip().strip("`").strip()
 
 
-def _parse_json(text: str) -> list[dict[str, Any]]]:
+def _parse_json(text: str) -> list[dict[str, Any]]:
     """Probeer JSON te vinden: hele tekst of ```json ... ``` blokken."""
     json_blobs = re.findall(r"```(?:json)?\s*(.*?)```", text, flags=re.DOTALL | re.IGNORECASE) or [text]
     for blob in json_blobs:
@@ -68,24 +68,24 @@ def _parse_json(text: str) -> list[dict[str, Any]]]:
     return []
 
 
-def parse(text: str) -> list[dict[str, Any]]]:
+def parse(text: str) -> list[dict[str, Any]]:
     """Parse Grok-antwoord: TOKEN:-blokken of JSON. Geeft [] als niets herkend word."""
 
     # 1) JSON (hele tekst of codeblok)
-    for candidate in _parse_json(text):
-        if candidate.get("token"):
-            return candidate
+    json_cands = _parse_json(text)
+    if json_cands:
+        return json_cands
 
     # 2) TOKEN:-blokken
     blocks = re.findall(
         r"(?:^|\n)\s*TOKEN:\s*(?P<token>[^\n]+)"
         r"(.*?)(?=\n\s*TOKEN:|\Z)", text, flags=re.IGNORECASE | re.DOTALL)
-    out: list[dict[str, Any]]] = []
+    out: list[dict[str, Any]] = []
     for token, rest in blocks:
         token = _clean(token)
-        if not token or token.lower() in {"geen", "none", "nvt", "n.v.t", "-", "—"}：
+        if not token or token.lower() in {"geen", "none", "nvt", "n.v.t", "-", "—"}:
             continue
-        fields: dict[str, str]] = {}
+        fields: dict[str, str] = {}
         for key in ("WAAROM", "X-MENTIES", "X-BRON", "RISICO"):
             m = re.search(rf"^\s*{re.escape(key)}:\s*(.*)$", rest, flags=re.IGNORECASE | re.MULTILINE)
             fields[key] = _clean(m.group(1) if m else "")

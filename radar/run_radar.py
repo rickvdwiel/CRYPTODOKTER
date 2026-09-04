@@ -108,8 +108,8 @@ def scan() -> int:
         addr = p.get("tokenAddress", "")
         if addr:
             candidates.append((addr, p.get("description") or ""))
-    # Fallback/vulling: Bitvavo sweep (pak extra lonende micro-caps]
-    sweep = sweep_unknown(limit=6
+    # Fallback/vulling: Bitvavo sweep (pak extra lonende micro-caps)
+    sweep = sweep_unknown(limit=6)
     for s in sweep:
         candidates.append((s["symbol"], ""))
     if not candidates:
@@ -132,7 +132,7 @@ def run_grok(raw: str) -> int:
     print(f">> CryptoDokter Radar --grok: {len(cands)} kandidaten van Grok\n")
     print(DISCLAIMER)
     print()
-    candidates = [(c["token"], " ".join(filter(None, (c.get("waarom"), c.get("risico")))))) for c in cands]
+    candidates = [(c["token"], " ".join(filter(None, [c.get("waarom"), c.get("risico")]))) for c in cands]
     return _run_candidates(candidates, source_label="(Grok/X-trends)")
 
 
@@ -145,11 +145,13 @@ def grok_prompt() -> int:
     print("         of: python -m radar.run_radar --grok grok_output.txt\n")
     print("-" * 62)
     print()
-    print(grok.build_prompt()
+    print(grok.build_prompt())
     print()
     print("-" * 62)
     print("\nTip: lukken de TOKEN:-blokken niet? Vraag Grok dan: 'geef dit als")
     print("      JSON-lijst met keys: token, waarom, x_menties, x_bron, risico'.")
     return 0
-\n\nif __name__ == "__main__":
+
+
+if __name__ == "__main__":
     sys.exit(main())

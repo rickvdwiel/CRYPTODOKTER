@@ -71,7 +71,7 @@ def print_report(name: str, info: dict) -> None:
             print("  Exchange : (nog) niet op bekende exchanges")
     x = info.get("x")
     if x is not None:
-        print(f"  X-trend  : {x.count} mentions ({', '.join(x.sources_ok) or 'geen bron')}")
+        print(f"  X-trend  : {x.count} mentions ({', '.join(x.sources_ok) or 'geen bron'})")
         from radar.sources.x_scraper import format_mentions
         print(format_mentions(x))
     n = info.get("news")
