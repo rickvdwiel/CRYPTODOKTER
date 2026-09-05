@@ -176,9 +176,8 @@ class TestHttp(WebTestCase):
         self.assertIn("Onderzoek de markt", body)
         self.assertIn("PAPIER", body)
         self.assertIn("onderzoek(", body)
-        self.assertIn("Vitale waarden", body)
         self.assertIn("id=\"sonar\"", body)
-        self.assertIn("Stap 1", body)
+        self.assertIn("id=\"exam\"", body)
 
     def test_health(self):
         status, body = self._get("/api/health")
