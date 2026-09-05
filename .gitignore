@@ -7,4 +7,5 @@ data/*.csv
 data/*.json
 data/*.log
 data/*.log.*
+data/*.png
 .DS_Store
