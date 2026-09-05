@@ -201,7 +201,7 @@ Negatieve veranderingen tellen als 0, niet negatief. Risico-grenzen:
 
 ### Paper-bot (`bot/config.py`)
 
-€50 start, max 5 posities, 20% per positie, fee 0,25%, slippage 1% (5% onder
+€100 start (gereserveerd papierbedrag), max 5 posities, 20% per positie, fee 0,25%, slippage 1% (5% onder
 $50k liquiditeit), stop-loss -25%, take-profit +60%, trailing -20%, max 14 dagen
 hold. Koopfilter: score ≥ 35 **en** liquiditeit ≥ $25k. De portefeuille staat in
 `data/paper_portfolio.json`, elke trade in `data/paper_trades.csv` (beide lokaal,

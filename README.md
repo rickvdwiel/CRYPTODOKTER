@@ -103,6 +103,8 @@ python -m bot.run_bot --reset           # terug naar het startbudget
 ```
 
 Instellingen (budget, risicoregels, koopfilter) staan in `bot/config.py`.
+Papieren startbudget is **€100** (20% = €20 per positie, max 5). Dat is het
+bedrag dat later gereserveerd wordt om te traden — eerst weken papier.
 De stand komt in `data/paper_portfolio.json`, elke trade in `data/paper_trades.csv`.
 Laat dit weken draaien vóór je overweegt om echt geld te riskeren.
 

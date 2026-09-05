@@ -95,7 +95,7 @@ cryptodokter/
    `risk_label`, `momentum.check_symbol` (met mock-data).
 
 ### Fase 2 — Paper-bot (daarna, zie ook BOT-CONSOLIDATION.md)
-- `bot/` vullen: paper-portefeuille (€50 start), alleen virtueel handelen op
+- `bot/` vullen: paper-portefeuille (€100 start), alleen virtueel handelen op
   radar-kandidaten, met fees/slippage + stop-loss. Alleen Bitvavo-public-data
   (geen keys), géén live-orders.
 - Logging per dag (CSV/JSON) zodat je ziet of een strategie werkt vóór je geld
@@ -146,7 +146,7 @@ cryptodokter/
     save_raw, signals.score/risk_label, momentum.check_symbol/sweep met mocks).
     Draaien: `.venv/bin/python -m unittest discover -s tests -t . -q`.
 - **[jcode, sep 2026] Fase 2 gebouwd — paper-bot draait:**
-  - `bot/config.py`: €50 startbudget, max 5 posities, 20%/positie, fee 0,25%,
+  - `bot/config.py`: €100 startbudget, max 5 posities, 20%/positie, fee 0,25%,
     slippage 1% (5% bij liquiditeit < $50k), stop-loss -25%, take-profit +60%,
     trailing -20%, max 14 dagen hold, koopfilter score >= 35 en liquiditeit >= $25k.
   - `bot/portfolio.py`: papieren portefeuille met fees/slippage, trailing-high,

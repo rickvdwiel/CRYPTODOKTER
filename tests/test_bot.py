@@ -28,7 +28,7 @@ class TestBuySell(PaperTestCase):
         pf = Portfolio()
         pos = pf.buy("PONS", 1.0, budget_eur=10.0, liquidity_usd=1_000_000)
         self.assertIsNotNone(pos)
-        self.assertAlmostEqual(pf.cash_eur, 40.0)
+        self.assertAlmostEqual(pf.cash_eur, config.START_BUDGET_EUR - 10.0)
         self.assertAlmostEqual(pf.fees_paid_eur, 10.0 * config.FEE_PCT / 100)
         # fill = prijs + slippage
         self.assertAlmostEqual(pos.entry_price, 1.0 * (1 + config.SLIPPAGE_PCT / 100))

@@ -156,7 +156,7 @@ a{color:var(--rh)}
       <button class="btn pri" onclick="onderzoek(this)"><span class="spinny">◉</span> Onderzoek de markt</button>
       <button class="btn" id="koopgroen" hidden onclick="koopGoedgekeurde(this)">Koop groene</button>
       <button class="btn" onclick="act('tick',{},this)">Tick</button>
-      <button class="btn danger" onclick="act('reset',{},this,'Portefeuille terug naar €50?')">Reset</button>
+      <button class="btn danger" onclick="act('reset',{},this,'Portefeuille terug naar €'+(health.start_eur||100)+'?')">Reset</button>
       <span class="live" id="live"><em></em> LIVE</span>
     </div>
   </header>

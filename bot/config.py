@@ -6,7 +6,9 @@ marktdata in, papieren portefeuille uit.
 from __future__ import annotations
 
 # Portefeuille
-START_BUDGET_EUR = 50.0          # startkapitaal (papier)
+# Gereserveerd live-kapitaal later: €100. Papier draait op hetzelfde bedrag
+# zodat fees/slippage dezelfde schaal hebben. Geen echte orders.
+START_BUDGET_EUR = 100.0         # startkapitaal (papier = gereserveerd bedrag)
 MAX_POSITIONS = 5                # nooit meer dan dit aantal open posities
 POSITION_SIZE_PCT = 20.0         # % van startbudget per positie
 MIN_POSITION_EUR = 2.0           # kleiner heeft geen zin (fees vreten alles)
