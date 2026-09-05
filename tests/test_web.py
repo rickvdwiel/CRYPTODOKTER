@@ -173,11 +173,12 @@ class TestHttp(WebTestCase):
         self.assertEqual(status, 200)
         self.assertIn("CryptoDokter", body)
         self.assertIn("Geen financieel advies", body)
-        self.assertIn("Scan &amp; koop", body)
+        self.assertIn("Onderzoek de markt", body)
         self.assertIn("PAPIER", body)
-        self.assertIn("act('scan'", body)
+        self.assertIn("onderzoek(", body)
         self.assertIn("Vitale waarden", body)
         self.assertIn("id=\"sonar\"", body)
+        self.assertIn("Stap 1", body)
 
     def test_health(self):
         status, body = self._get("/api/health")
@@ -200,6 +201,22 @@ class TestHttp(WebTestCase):
             headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, json.loads(r.read().decode("utf-8"))
+
+    def test_scan_stream(self):
+        orig = server.run_bot.scan_steps
+        server.run_bot.scan_steps = lambda dry_run=True: iter([
+            {"fase": "start", "totaal": 1, "melding": "start"},
+            {"fase": "check", "symbol": "WOLF", "actie": "zou_kopen",
+             "reden": "ok", "i": 1, "n": 1, "score": 40, "liq": 80000},
+            {"fase": "klaar", "gekocht": 0, "melding": "klaar", "events": []},
+        ])
+        try:
+            status, body = self._get("/api/scan-stream?dry_run=1")
+        finally:
+            server.run_bot.scan_steps = orig
+        self.assertEqual(status, 200)
+        self.assertIn("zou_kopen", body)
+        self.assertIn("WOLF", body)
 
     def test_post_reset(self):
         status, body = self._post("/api/reset")

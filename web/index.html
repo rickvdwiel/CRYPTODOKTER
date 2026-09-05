@@ -130,6 +130,24 @@ h1{margin:0;font-size:28px;letter-spacing:-.03em}
 .modal h3{margin:0 0 8px;font-size:18px}
 .modal p{margin:0 0 16px;color:var(--dim)}
 .live{display:flex;align-items:center;gap:6px;color:var(--cyan);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.how{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0 18px}
+@media (max-width:800px){.how{grid-template-columns:1fr 1fr}}
+.st{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:16px;padding:12px 14px;position:relative}
+.st .nr{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);font-weight:800}
+.st b{display:block;margin:4px 0 2px;font-size:15px}
+.st p{margin:0;color:var(--dim);font-size:12px;line-height:1.4}
+.exam{display:flex;flex-direction:column;gap:8px;min-height:48px}
+.examrow{display:grid;grid-template-columns:1.1fr .7fr .9fr 1.6fr auto;gap:8px;align-items:center;
+  background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:14px;padding:10px 12px;
+  animation:rise .35s ease both}
+@media (max-width:720px){.examrow{grid-template-columns:1fr 1fr;}}
+.examrow.ok{border-color:rgba(62,240,194,.45)}
+.examrow.no{opacity:.88}
+.examrow .why{color:var(--dim);font-size:13px}
+.prog{height:6px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden;margin:8px 0 12px}
+.prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--blue));transition:width .3s}
+.sonar.hot .sweep{animation-duration:.8s}
+.rondestatus{color:var(--mint);font-size:14px;margin:0 0 8px}
 .live em{width:8px;height:8px;border-radius:50%;background:var(--cyan);display:inline-block;animation:blink 1s infinite;font-style:normal}
 .timeline{display:flex;flex-direction:column;gap:0}
 .tl{display:grid;grid-template-columns:16px 1fr;gap:10px}
@@ -165,16 +183,30 @@ a{color:var(--blue)}
     </div>
   </header>
 
+  <div class="how" id="how">
+    <div class="st"><div class="nr">Stap 1</div><b>Onderzoek</b><p>We halen trending tokens op en lopen ze één voor één na. Dat duurt ~15 seconden — je ziet elke check.</p></div>
+    <div class="st"><div class="nr">Stap 2</div><b>Filter</b><p id="howfilter">Alleen score ≥ 35 én liquiditeit ≥ $25.000. De rest is te dun of te verdacht (rug).</p></div>
+    <div class="st"><div class="nr">Stap 3</div><b>Jij koopt</b><p id="howbuy">Op papier, ongeveer €10 per token (20% van €50), max 5 tegelijk. Geen echt geld.</p></div>
+    <div class="st"><div class="nr">Stap 4</div><b>Tick</b><p>Later: stop-loss −25%, take-profit +60%, of trailing. Alleen virtueel.</p></div>
+  </div>
+
   <div class="actions" id="toolbar">
-    <button class="btn pri" onclick="act('scan',{},this,'De radar zet virtueel geld op tokens die door het filter komen. Doorgaan?')">
-      <span class="spinny">◉</span> Scan &amp; koop
+    <button class="btn pri" id="btnOnderzoek" onclick="onderzoek(this)">
+      <span class="spinny">◉</span> Onderzoek de markt
     </button>
-    <button class="btn" onclick="act('scan',{dry_run:true},this)">Voorbeeld-scan</button>
+    <button class="btn" id="koopgroen" hidden onclick="koopGoedgekeurde(this)">Koop de groene op papier</button>
     <button class="btn" onclick="act('tick',{},this)">Tick — check exits</button>
     <button class="btn ghost" onclick="act('cycle',{},this,'Eén klok-tik: prijzen verversen, en scannen als de dag om is?')">Scheduler-cyclus</button>
     <button class="btn" onclick="load(this)">Ververs</button>
     <button class="btn danger" onclick="act('reset',{},this,'Portefeuille terug naar €50? Het logboek blijft bewaard.')">Reset</button>
     <span class="live" id="live"><em></em> live</span>
+  </div>
+
+  <div class="panel" id="rondepanel" style="animation-delay:.02s">
+    <div class="row"><h2>Onderzoek — live ronde</h2><span class="pill" id="rondepill">wacht op jou</span></div>
+    <p class="rondestatus" id="rondestatus">Nog niets onderzocht. Druk op <b>Onderzoek de markt</b>. Dan zie je per token waarom hij wél of niet gekocht mag worden. Scan &amp; koop zit daarachter: eerst kijken, dan pas (papier) kopen.</p>
+    <div class="prog"><i id="progbar"></i></div>
+    <div class="exam" id="exam"></div>
   </div>
 
   <section class="hero">
@@ -308,6 +340,74 @@ async function act(soort, body, btn, confirmMsg){
   if(btn) btn.classList.remove('spin');
   busy(false);
 }
+
+let goedgekeurd=[];
+function appendExam(d){
+  const ok=d.actie==='zou_kopen'||d.actie==='gekocht';
+  const row=document.createElement('div');
+  row.className='examrow '+(ok?'ok':'no');
+  const liq=d.liq?('$'+Math.round(d.liq).toLocaleString('nl-NL')):'geen liq';
+  const bedrag=health.position_eur||10;
+  const buy=ok?`<button class="btn tiny pri" onclick="act('buy',{symbol:'${d.symbol}'},this,'${d.symbol} virtueel kopen voor ongeveer €${bedrag}?')">Koop €${bedrag}</button>`:'';
+  row.innerHTML=`<b>${d.symbol||'?'}</b><span>score ${d.score??'—'}</span><span>${liq}</span><span class="why">${d.reden||''}</span>${buy}`;
+  document.getElementById('exam').appendChild(row);
+  row.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function onderzoek(btn){
+  goedgekeurd=[];
+  document.getElementById('exam').innerHTML='';
+  document.getElementById('koopgroen').hidden=true;
+  document.getElementById('rondepill').textContent='bezig';
+  document.getElementById('rondestatus').textContent='Bezig… trending tokens ophalen. Dit duurt een kwart minuut, je ziet elke check langskomen.';
+  document.getElementById('progbar').style.width='4%';
+  document.getElementById('sonar').classList.add('hot');
+  busy(true);
+  if(btn) btn.classList.add('spin');
+  let klaar=false;
+  const es=new EventSource('/api/scan-stream?dry_run=1');
+  es.onmessage=e=>{
+    let d; try{d=JSON.parse(e.data);}catch(_){return;}
+    if(d.fase==='start'){
+      document.getElementById('rondestatus').textContent=d.melding;
+    }else if(d.fase==='check'){
+      appendExam(d);
+      if(d.n) document.getElementById('progbar').style.width=((d.i/d.n)*100)+'%';
+      document.getElementById('rondestatus').textContent=`Token ${d.i} van ${d.n}: ${d.symbol} — ${d.reden}`;
+      if(d.actie==='zou_kopen') goedgekeurd.push(d.symbol);
+    }else if(d.fase==='klaar'){
+      klaar=true; es.close();
+      document.getElementById('rondestatus').textContent=d.melding;
+      document.getElementById('rondepill').textContent='klaar';
+      document.getElementById('progbar').style.width='100%';
+      document.getElementById('sonar').classList.remove('hot');
+      const k=document.getElementById('koopgroen');
+      if(goedgekeurd.length){
+        k.hidden=false;
+        k.textContent='Koop '+goedgekeurd.length+' groene op papier';
+      }
+      toast(d.melding,true);
+      pulse=1;
+      if(btn) btn.classList.remove('spin');
+      busy(false);
+      load();
+    }
+  };
+  es.onerror=()=>{
+    if(klaar){ es.close(); return; }
+    es.close();
+    document.getElementById('rondestatus').textContent='De verbinding knapte. Druk nog eens op Onderzoek.';
+    document.getElementById('rondepill').textContent='fout';
+    document.getElementById('sonar').classList.remove('hot');
+    if(btn) btn.classList.remove('spin');
+    busy(false);
+  };
+}
+function koopGoedgekeurde(btn){
+  if(!goedgekeurd.length){ toast('Eerst onderzoeken — er is nog niets goedgekeurd.',false); return; }
+  act('buy_many',{symbols:goedgekeurd},btn,
+      'Ik koop nu op papier: '+goedgekeurd.join(', ')+'. Ongeveer €'+(health.position_eur||10)+' per stuk. Geen echt geld.');
+}
+
 function tween(el, to, fmt, ms){
   const from=Number(el.dataset.v||0), t0=performance.now();
   el.dataset.v=to;
@@ -408,6 +508,10 @@ async function load(){
     const [h, pf]=await Promise.all([jget('/api/health'), jget('/api/portfolio')]);
     health=h;
     document.getElementById('live').innerHTML= health.online ? '<em></em> live' : '<em style="background:#ff5d6c"></em> offline';
+    const hf=document.getElementById('howfilter');
+    const hb=document.getElementById('howbuy');
+    if(hf) hf.textContent=`Alleen score ≥ ${health.min_score} én liquiditeit ≥ $${Number(health.min_liq).toLocaleString('nl-NL')}. De rest is te dun of te verdacht (rug).`;
+    if(hb) hb.textContent=`Op papier, ongeveer €${health.position_eur} per token (${health.position_pct}% van €${health.start_eur}), max ${health.max_positions} tegelijk. Geen echt geld.`;
     tween(document.getElementById('eq'), pf.equity_eur, eur, 700);
     const ret=document.getElementById('ret');
     ret.className=cls(pf.rendement_pct);
@@ -422,7 +526,7 @@ async function load(){
     document.getElementById('updated').textContent='net bijgewerkt';
 
     if(!pf.posities.length){
-      document.getElementById('pos').innerHTML=`<div class="empty"><div class="orb"></div>Nog geen open posities. Tik <b>Scan &amp; koop</b> — de radar doet de rest, op papier.</div>`;
+      document.getElementById('pos').innerHTML=`<div class="empty"><div class="orb"></div>Nog geen open posities. Tik <b>Onderzoek de markt</b>, kijk welke groen zijn, koop daarna op papier.</div>`;
     }else{
       document.getElementById('pos').innerHTML=pf.posities.map(p=>{
         const crazy=Math.abs(p.pnl_pct)>400;

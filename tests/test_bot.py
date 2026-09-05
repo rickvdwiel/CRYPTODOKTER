@@ -164,6 +164,17 @@ class TestPerform(PaperTestCase):
         self.assertTrue(r["ok"])
         self.assertEqual(Portfolio.load().positions, {})
 
+    def test_oordeel_filter(self):
+        from bot import run_bot
+        actie, reden = run_bot._oordeel(10, 100_000, 1.0, False, 0)
+        self.assertEqual(actie, "overslaan")
+        self.assertIn("score", reden)
+        actie, reden = run_bot._oordeel(40, 100, 1.0, False, 0)
+        self.assertEqual(actie, "overslaan")
+        self.assertIn("liquiditeit", reden)
+        actie, reden = run_bot._oordeel(40, 100_000, 1.0, False, 0)
+        self.assertEqual(actie, "zou_kopen")
+
     def test_tick_zonder_posities(self):
         from bot import run_bot
         self._online = run_bot._online

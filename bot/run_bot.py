@@ -112,62 +112,119 @@ def perform_tick() -> dict:
             "summary": pf.summary(prices)}
 
 
-def perform_scan(dry_run: bool = False) -> dict:
-    """Radar draaien en (virtueel) kopen wat door het filter komt."""
+def _oordeel(score, liq, price, in_pf, n_pos) -> tuple:
+    """(actie, reden) volgens de koopregels. Geen side-effects."""
+    if n_pos >= config.MAX_POSITIONS:
+        return "stop", f"al {config.MAX_POSITIONS} posities (maximum)"
+    if score is None or score < config.MIN_SCORE:
+        return "overslaan", f"score {score} is onder de drempel ({config.MIN_SCORE})"
+    if (liq or 0) < config.MIN_LIQUIDITY_USD:
+        return "overslaan", f"te weinig liquiditeit (${(liq or 0):,.0f} < ${config.MIN_LIQUIDITY_USD:,.0f}) — rug-risico"
+    if not price:
+        return "overslaan", "geen bruikbare prijs gevonden"
+    if in_pf:
+        return "overslaan", "heb je al in de papieren portefeuille"
+    return "zou_kopen", "komt door het filter: score én liquiditeit oké"
+
+
+def scan_steps(dry_run: bool = True):
+    """Token-voor-token onderzoek. Yield dicts met fase start/check/klaar."""
     if not _online():
-        return _offline_result()
+        yield dict(_offline_result(), fase="klaar", events=[], gekocht=0, dry_run=dry_run)
+        return
     pf = Portfolio.load()
-    events = []
     profiles = dexscreener.trending_tokens(limit=radar_config.DEX_TOP_N)
     addrs = [p.get("tokenAddress", "") for p in profiles if p.get("tokenAddress")]
-    if not addrs:
-        return {"ok": True, "online": True, "dry_run": dry_run, "gekocht": 0,
-                "events": [], "melding": "Geen kandidaten van de radar (bron down?).",
-                "summary": pf.summary()}
+    subset = addrs[:radar_config.MAX_SCAN_TOKENS]
+    n = len(subset)
+    yield {
+        "fase": "start", "ok": True, "online": True, "dry_run": dry_run,
+        "totaal": n,
+        "melding": (f"{n} trending tokens gevonden. Ik loop ze één voor één na. "
+                    f"Koopregel: score ≥ {config.MIN_SCORE} én liquiditeit ≥ "
+                    f"${config.MIN_LIQUIDITY_USD:,.0f}. Alles papier."),
+    }
+    if not subset:
+        yield {"fase": "klaar", "ok": True, "online": True, "dry_run": dry_run,
+               "gekocht": 0, "events": [],
+               "melding": "Geen kandidaten van de radar (bron down?). Probeer later.",
+               "summary": pf.summary()}
+        return
 
+    events = []
     gekocht = 0
-    for addr in addrs[:radar_config.MAX_SCAN_TOKENS]:
-        if len(pf.positions) >= config.MAX_POSITIONS:
-            events.append({"actie": "stop", "symbol": "", "reden": "max posities"})
-            break
+    for i, addr in enumerate(subset, 1):
         info = analyze_token(addr, show_x=False)
         sym = (info.get("symbol") or addr)[:16]
-        total = info["score"]["total"]
+        total = (info.get("score") or {}).get("total")
         liq = _liquidity(info) or 0.0
         price = _price_eur(info)
-        if total < config.MIN_SCORE:
-            events.append({"actie": "overslaan", "symbol": sym,
-                           "reden": f"score {total} < {config.MIN_SCORE}"})
-            continue
-        if liq < config.MIN_LIQUIDITY_USD:
-            events.append({"actie": "overslaan", "symbol": sym,
-                           "reden": f"liquiditeit ${liq:,.0f} te laag"})
-            continue
-        if not price:
-            events.append({"actie": "overslaan", "symbol": sym, "reden": "geen prijs"})
-            continue
-        if sym in pf.positions:
-            events.append({"actie": "overslaan", "symbol": sym, "reden": "al in portefeuille"})
-            continue
-        if dry_run:
-            events.append({"actie": "zou_kopen", "symbol": sym, "score": total,
-                           "prijs_eur": price, "reden": f"score {total}"})
-            continue
-        pos = pf.buy(sym, price, liquidity_usd=liq, note=f"radar score {total}")
-        if pos:
-            gekocht += 1
-            events.append({"actie": "gekocht", "symbol": sym, "score": total,
-                           "prijs_eur": pos.entry_price, "bedrag_eur": pos.cost_eur,
-                           "reden": f"radar score {total}"})
-        else:
-            events.append({"actie": "geweigerd", "symbol": sym, "reden": "kas/limiet"})
+        actie, reden = _oordeel(total, liq, price, sym in pf.positions, len(pf.positions))
+        ev = {
+            "fase": "check", "i": i, "n": n, "actie": actie, "symbol": sym,
+            "score": total, "liq": liq, "prijs_eur": price, "reden": reden,
+        }
+        if actie == "zou_kopen" and not dry_run:
+            pos = pf.buy(sym, price, liquidity_usd=liq, note=f"radar score {total}")
+            if pos:
+                gekocht += 1
+                ev["actie"] = "gekocht"
+                ev["bedrag_eur"] = pos.cost_eur
+                ev["prijs_eur"] = pos.entry_price
+                ev["reden"] = f"papier gekocht voor €{pos.cost_eur:.2f} (score {total})"
+            else:
+                ev["actie"] = "geweigerd"
+                ev["reden"] = "kas op of limiet bereikt"
+        events.append(ev)
+        yield ev
+        if ev["actie"] == "stop":
+            break
 
     if not dry_run:
         pf.save()
-    melding = (f"{gekocht} nieuwe papieren positie(s)." if not dry_run
-               else f"{sum(1 for e in events if e['actie'] == 'zou_kopen')} kandidaat(en) zou(den) gekocht worden.")
-    return {"ok": True, "online": True, "dry_run": dry_run, "gekocht": gekocht,
-            "events": events, "melding": melding, "summary": pf.summary()}
+    n_ok = sum(1 for e in events if e["actie"] in ("zou_kopen", "gekocht"))
+    if dry_run:
+        melding = (f"Klaar. {n_ok} van {n} mag je kopen op papier. "
+                   f"De rest valt af op score of liquiditeit.")
+    else:
+        melding = f"Klaar. {gekocht} nieuwe papieren positie(s)."
+    yield {
+        "fase": "klaar", "ok": True, "online": True, "dry_run": dry_run,
+        "gekocht": gekocht, "events": events, "melding": melding,
+        "summary": pf.summary(),
+        "goedgekeurd": [e["symbol"] for e in events if e["actie"] in ("zou_kopen", "gekocht")],
+    }
+
+
+def perform_scan(dry_run: bool = False) -> dict:
+    """Radar draaien; verzamelt scan_steps tot één resultaat (CLI + oude API)."""
+    last = {"ok": False, "melding": "scan leverde niets op", "events": [], "gekocht": 0}
+    events = []
+    for ev in scan_steps(dry_run=dry_run):
+        last = ev
+        if ev.get("fase") == "check":
+            events.append(ev)
+    last = dict(last)
+    last.setdefault("events", events)
+    last.setdefault("ok", True)
+    last.setdefault("dry_run", dry_run)
+    return last
+
+
+def perform_buy_many(symbols) -> dict:
+    """Koop een lijst symbolen op papier, elk door hetzelfde filter."""
+    gekocht = 0
+    results = []
+    for raw in symbols or []:
+        r = perform_buy(str(raw), require_filter=True)
+        results.append({"symbol": str(raw).upper(), **{k: r.get(k) for k in ("ok", "melding")}})
+        if r.get("ok"):
+            gekocht += 1
+    melding = (f"{gekocht} papieren koop(en) uitgevoerd."
+               if gekocht else "Niets gekocht — filter of kas hield alles tegen.")
+    return {"ok": gekocht > 0 or not list(symbols or []), "gekocht": gekocht,
+            "results": results, "melding": melding,
+            "summary": Portfolio.load().summary()}
 
 
 def perform_buy(symbol: str, amount: Optional[float] = None,

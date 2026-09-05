@@ -178,6 +178,8 @@ def api_health() -> dict:
         "min_liq": bot_config.MIN_LIQUIDITY_USD,
         "max_positions": bot_config.MAX_POSITIONS,
         "start_eur": bot_config.START_BUDGET_EUR,
+        "position_pct": bot_config.POSITION_SIZE_PCT,
+        "position_eur": round(bot_config.START_BUDGET_EUR * bot_config.POSITION_SIZE_PCT / 100.0, 2),
     }
 
 
@@ -186,6 +188,8 @@ def api_actie(soort: str, body: Optional[dict] = None) -> dict:
     body = body or {}
     if soort == "scan":
         r = run_bot.perform_scan(dry_run=bool(body.get("dry_run")))
+    elif soort == "buy_many":
+        r = run_bot.perform_buy_many(body.get("symbols") or [])
     elif soort == "tick":
         r = run_bot.perform_tick()
     elif soort == "buy":
@@ -240,6 +244,27 @@ class Handler(BaseHTTPRequestHandler):
         self._send(json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                    "application/json; charset=utf-8", status)
 
+    def _scan_stream(self) -> None:
+        qs = parse_qs(urlparse(self.path).query)
+        dry = qs.get("dry_run", ["1"])[0].lower() in ("1", "true", "yes", "")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        try:
+            self.wfile.write(b"retry: 60000\n\n")
+            self.wfile.flush()
+            for ev in run_bot.scan_steps(dry_run=dry):
+                payload = json.dumps(ev, ensure_ascii=False)
+                self.wfile.write(("data: " + payload + "\n\n").encode("utf-8"))
+                self.wfile.flush()
+            if not dry:
+                _bust()
+        except BrokenPipeError:
+            pass
+
     def _body(self) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
         if n <= 0:
@@ -289,6 +314,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(api_scheduler())
             elif path == "/api/health":
                 self._json(api_health())
+            elif path == "/api/scan-stream":
+                self._scan_stream()
             elif path == "/api/sleep":
                 time.sleep(1.6)
                 gif = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00"
@@ -307,7 +334,7 @@ class Handler(BaseHTTPRequestHandler):
         soort = path.rsplit("/", 1)[-1]
         try:
             if path.startswith("/api/") and soort in (
-                    "scan", "tick", "buy", "sell", "reset", "cycle"):
+                    "scan", "tick", "buy", "sell", "reset", "cycle", "buy_many"):
                 self._json(api_actie(soort, self._body()))
             else:
                 self._json({"error": "niet gevonden"}, 404)
