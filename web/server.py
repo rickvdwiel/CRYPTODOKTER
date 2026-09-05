@@ -6,9 +6,10 @@ Draait op de Python-standaardbibliotheek (geen Flask/Django nodig):
     python -m web.server --port 8080 --host 0.0.0.0
 
 Toont: papieren portefeuille, radar-kandidaten (met risico-labels) en de
-watchlist. Scans worden gecachet zodat de gratis bronnen niet worden gehamerd.
+watchlist. Je kunt vanaf hier scannen, kopen en verkopen — allemaal papier.
+Scans worden gecachet zodat de gratis bronnen niet worden gehamerd.
 
-Alleen lezen + papier: dit dashboard plaatst nooit een echte order.
+Dit dashboard plaatst nooit een echte order.
 """
 from __future__ import annotations
 
@@ -20,9 +21,11 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
-from bot.portfolio import Portfolio
+from bot import config as bot_config
+from bot import run_bot, scheduler
+from bot.portfolio import TRADES_FILE, Portfolio
 from radar import config as radar_config
 from radar.run_radar import _online, analyze_token
 from radar.sources import dexscreener
@@ -61,6 +64,7 @@ def _slim(info: dict) -> dict:
         "liquidity_usd": dex.get("liquidity_usd", 0),
         "volume_h24": dex.get("volume_usd_h24", 0),
         "chain": dex.get("chain", ""),
+        "quote": dex.get("quote", ""),
         "url": dex.get("url", ""),
         "exchange": (exch[0]["pair"] if exch else ""),
         "x_count": getattr(info.get("x"), "count", 0),
@@ -114,6 +118,11 @@ def api_radar(limit: int = 8) -> dict:
     return {"online": True, "kandidaten": _cached(f"radar:{limit}", work)}
 
 
+def _bust() -> None:
+    with _lock:
+        _cache.clear()
+
+
 def api_watchlist() -> dict:
     if not WATCHLIST.exists():
         return {"items": []}
@@ -133,110 +142,93 @@ def api_watchlist() -> dict:
     return {"items": rows}
 
 
-INDEX_HTML = """<!doctype html>
-<html lang="nl"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CryptoDokter 🩺</title>
-<style>
- :root{--bg:#0d1117;--card:#161b22;--line:#30363d;--tx:#e6edf3;--dim:#8b949e;
-       --up:#3fb950;--down:#f85149;--warn:#d29922}
- *{box-sizing:border-box}
- body{margin:0;background:var(--bg);color:var(--tx);
-      font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
- header{padding:22px 20px;border-bottom:1px solid var(--line)}
- h1{margin:0;font-size:22px}
- .sub{color:var(--dim);font-size:13px;margin-top:4px}
- main{padding:20px;max-width:1100px;margin:0 auto}
- .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
-       padding:16px;margin-bottom:18px}
- h2{margin:0 0 12px;font-size:16px}
- table{width:100%;border-collapse:collapse;font-size:14px}
- th{text-align:left;color:var(--dim);font-weight:500;padding:6px 8px;
-    border-bottom:1px solid var(--line)}
- td{padding:7px 8px;border-bottom:1px solid #21262d}
- tr:last-child td{border-bottom:none}
- .up{color:var(--up)}.down{color:var(--down)}.dim{color:var(--dim)}
- .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
- .kpi{background:#0d1117;border:1px solid var(--line);border-radius:8px;padding:12px}
- .kpi b{display:block;font-size:20px;margin-top:2px}
- .kpi span{color:var(--dim);font-size:12px}
- .tag{font-size:11px;padding:2px 7px;border-radius:99px;border:1px solid var(--line)}
- .rug{color:var(--down);border-color:var(--down)}
- .mid{color:var(--warn);border-color:var(--warn)}
- .ok{color:var(--up);border-color:var(--up)}
- a{color:#58a6ff;text-decoration:none}
- .note{color:var(--dim);font-size:12px;margin-top:10px}
- footer{padding:16px 20px;color:var(--dim);font-size:12px;border-top:1px solid var(--line)}
-</style></head><body>
-<header>
-  <h1>CryptoDokter 🩺</h1>
-  <div class="sub">Vroege trend-radar + papieren portefeuille · alles virtueel,
-    geen financieel advies</div>
-</header>
-<main>
-  <div class="card"><h2>Papieren portefeuille</h2><div id="pf">laden…</div></div>
-  <div class="card"><h2>Radar — kandidaten nu</h2><div id="radar">laden…</div></div>
-  <div class="card"><h2>Watchlist</h2><div id="wl">laden…</div></div>
-</main>
-<footer>⚠️ Geen financieel advies. Micro-caps gaan meestal naar nul.
-  Deze site handelt uitsluitend op papier.</footer>
-<script>
-const eur=n=>'€'+Number(n).toFixed(2);
-const pct=n=>(n>=0?'+':'')+Number(n).toFixed(2)+'%';
-const cls=n=>n>=0?'up':'down';
-function tag(risk){
-  if(!risk) return '';
-  const c = risk.includes('RUG')?'rug':(risk.includes('iets')?'mid':
-            (risk.includes('onbekend')?'':'ok'));
-  return `<span class="tag ${c}">${risk}</span>`;
-}
-async function load(){
- try{
-  const pf=await (await fetch('/api/portfolio')).json();
-  document.getElementById('pf').innerHTML=`
-   <div class="grid">
-    <div class="kpi"><span>Waarde</span><b>${eur(pf.equity_eur)}</b></div>
-    <div class="kpi"><span>Rendement</span><b class="${cls(pf.rendement_pct)}">${pct(pf.rendement_pct)}</b></div>
-    <div class="kpi"><span>Kas</span><b>${eur(pf.cash_eur)}</b></div>
-    <div class="kpi"><span>Trades</span><b>${pf.trades}</b></div>
-    <div class="kpi"><span>Fees betaald</span><b>${eur(pf.fees_paid_eur)}</b></div>
-   </div>` + (pf.posities.length?`
-   <table><tr><th>Symbool</th><th>Aantal</th><th>Instap</th><th>P&L</th><th>Reden</th></tr>
-   ${pf.posities.map(p=>`<tr><td><b>${p.symbol}</b></td><td>${p.qty}</td>
-    <td>€${p.entry.toPrecision(4)}</td><td class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td>
-    <td class="dim">${p.note}</td></tr>`).join('')}</table>`
-   :'<p class="note">Nog geen open posities. Draai <code>python -m bot.run_bot --scan</code>.</p>');
+def api_trades(limit: int = 30) -> dict:
+    if not TRADES_FILE.exists():
+        return {"items": []}
+    import csv
+    rows = []
+    with TRADES_FILE.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            rows.append(row)
+    return {"items": list(reversed(rows[-limit:]))}
 
-  const rd=await (await fetch('/api/radar')).json();
-  document.getElementById('radar').innerHTML = rd.online ? (rd.kandidaten.length?`
-   <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Liquiditeit</th>
-   <th>Risico</th><th>X</th><th>Nieuws</th><th></th></tr>
-   ${rd.kandidaten.map(k=>`<tr><td><b>${k.symbol}</b> <span class="dim">${k.chain||''}</span></td>
-    <td>${k.score}</td><td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'-'}</td>
-    <td>$${Math.round(k.liquidity_usd).toLocaleString('nl-NL')}</td>
-    <td>${tag(k.risk)}</td><td>${k.x_count}</td><td>${k.news}</td>
-    <td>${k.url?`<a href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}</td></tr>`).join('')}
-   </table><p class="note">Ververst hooguit elke 5 minuten (bronnen ontzien).</p>`
-   :'<p class="note">Geen kandidaten gevonden.</p>')
-   : `<p class="note">${rd.melding}</p>`;
 
-  const wl=await (await fetch('/api/watchlist')).json();
-  document.getElementById('wl').innerHTML = wl.items.length?`
-   <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Risico</th></tr>
-   ${wl.items.map(k=>`<tr><td><b>${k.symbol}</b></td><td>${k.score??'-'}</td>
-    <td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'-'}</td>
-    <td>${tag(k.risk||'')}</td></tr>`).join('')}</table>`
-   :'<p class="note">Watchlist is leeg (data/watchlist.txt).</p>';
- }catch(e){
-  document.getElementById('radar').innerHTML='<p class="note">Fout bij laden: '+e+'</p>';
- }
-}
-load(); setInterval(load, 60000);
-</script></body></html>"""
+def api_scheduler() -> dict:
+    state = scheduler.load_state()
+    now = scheduler._now()
+    return {
+        "last_tick": state.get("last_tick"),
+        "last_scan": state.get("last_scan"),
+        "ticks": int(state.get("ticks") or 0),
+        "scans": int(state.get("scans") or 0),
+        "errors": int(state.get("errors") or 0),
+        "tick_over_u": round(scheduler._hours_left(
+            state.get("last_tick"), bot_config.TICK_EVERY_HOURS, now), 2),
+        "scan_over_u": round(scheduler._hours_left(
+            state.get("last_scan"), bot_config.SCAN_EVERY_HOURS, now), 2),
+        "label": bot_config.LAUNCHD_LABEL,
+    }
+
+
+def api_health() -> dict:
+    return {
+        "ok": True,
+        "online": _online(),
+        "papier": True,
+        "min_score": bot_config.MIN_SCORE,
+        "min_liq": bot_config.MIN_LIQUIDITY_USD,
+        "max_positions": bot_config.MAX_POSITIONS,
+        "start_eur": bot_config.START_BUDGET_EUR,
+        "position_pct": bot_config.POSITION_SIZE_PCT,
+        "position_eur": round(bot_config.START_BUDGET_EUR * bot_config.POSITION_SIZE_PCT / 100.0, 2),
+    }
+
+
+def api_actie(soort: str, body: Optional[dict] = None) -> dict:
+    """Paper-only mutaties. Nooit een echte order."""
+    body = body or {}
+    if soort == "scan":
+        r = run_bot.perform_scan(dry_run=bool(body.get("dry_run")))
+    elif soort == "buy_many":
+        r = run_bot.perform_buy_many(body.get("symbols") or [])
+    elif soort == "tick":
+        r = run_bot.perform_tick()
+    elif soort == "buy":
+        sym = (body.get("symbol") or "").strip()
+        if not sym:
+            return {"ok": False, "melding": "Geen symbool opgegeven."}
+        amount = body.get("amount")
+        try:
+            amount = float(amount) if amount not in (None, "") else None
+        except (TypeError, ValueError):
+            amount = None
+        r = run_bot.perform_buy(sym, amount, require_filter=True)
+    elif soort == "sell":
+        sym = (body.get("symbol") or "").strip()
+        if not sym:
+            return {"ok": False, "melding": "Geen symbool opgegeven."}
+        r = run_bot.perform_sell(sym)
+    elif soort == "reset":
+        r = run_bot.perform_reset()
+    elif soort == "cycle":
+        did = scheduler.run_cycle()
+        r = {"ok": True, "did": did,
+             "melding": "Scheduler-cyclus klaar"
+             + (f" (tick={did.get('tick')}, scan={did.get('scan')}).")}
+    else:
+        return {"ok": False, "melding": f"Onbekende actie: {soort}"}
+    _bust()
+    r.setdefault("portfolio", api_portfolio())
+    return r
+
+
+def index_html() -> str:
+    path = ROOT / "index.html"
+    return path.read_text(encoding="utf-8")
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "CryptoDokter/0.1"
+    server_version = "CryptoDokter/0.3"
 
     def log_message(self, fmt, *args):  # rustiger console
         sys.stderr.write(f"  {self.address_string()} {fmt % args}\n")
@@ -245,6 +237,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -252,19 +245,84 @@ class Handler(BaseHTTPRequestHandler):
         self._send(json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                    "application/json; charset=utf-8", status)
 
+    def _scan_stream(self) -> None:
+        qs = parse_qs(urlparse(self.path).query)
+        dry = qs.get("dry_run", ["1"])[0].lower() in ("1", "true", "yes", "")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        try:
+            self.wfile.write(b"retry: 60000\n\n")
+            self.wfile.flush()
+            for ev in run_bot.scan_steps(dry_run=dry):
+                payload = json.dumps(ev, ensure_ascii=False)
+                self.wfile.write(("data: " + payload + "\n\n").encode("utf-8"))
+                self.wfile.flush()
+            if not dry:
+                _bust()
+        except BrokenPipeError:
+            pass
+
+    def _body(self) -> dict:
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0:
+            return {}
+        raw = self.rfile.read(n)
+        try:
+            data = json.loads(raw.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         try:
             if path in ("/", "/index.html"):
-                self._send(INDEX_HTML.encode("utf-8"), "text/html; charset=utf-8")
+                html = index_html()
+                if parse_qs(urlparse(self.path).query).get("shot"):
+                    boot = {
+                        "health": api_health(),
+                        "portfolio": api_portfolio(),
+                        "radar": api_radar(),
+                        "watchlist": api_watchlist(),
+                        "scheduler": api_scheduler(),
+                        "trades": api_trades(),
+                    }
+                    html = html.replace(
+                        "</head>",
+                        "<script>window.__BOOT=" + json.dumps(boot, ensure_ascii=False)
+                        + ";</script></head>",
+                        1,
+                    )
+                    html = html.replace(
+                        "</body>",
+                        '<img alt="" src="/api/sleep" width="1" height="1" style="opacity:0"></body>',
+                        1,
+                    )
+                self._send(html.encode("utf-8"), "text/html; charset=utf-8")
             elif path == "/api/portfolio":
                 self._json(api_portfolio())
             elif path == "/api/radar":
                 self._json(api_radar())
             elif path == "/api/watchlist":
                 self._json(api_watchlist())
+            elif path == "/api/trades":
+                self._json(api_trades())
+            elif path == "/api/scheduler":
+                self._json(api_scheduler())
             elif path == "/api/health":
-                self._json({"ok": True, "online": _online()})
+                self._json(api_health())
+            elif path == "/api/scan-stream":
+                self._scan_stream()
+            elif path == "/api/sleep":
+                time.sleep(1.6)
+                gif = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00"
+                       b"!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00"
+                       b"\x01\x00\x00\x02\x02D\x01\x00;")
+                self._send(gif, "image/gif")
             else:
                 self._json({"error": "niet gevonden"}, 404)
         except BrokenPipeError:
@@ -272,11 +330,25 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001 — dashboard mag nooit omvallen
             self._json({"error": str(e)}, 500)
 
+    def do_POST(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        soort = path.rsplit("/", 1)[-1]
+        try:
+            if path.startswith("/api/") and soort in (
+                    "scan", "tick", "buy", "sell", "reset", "cycle", "buy_many"):
+                self._json(api_actie(soort, self._body()))
+            else:
+                self._json({"error": "niet gevonden"}, 404)
+        except BrokenPipeError:
+            pass
+        except Exception as e:  # noqa: BLE001
+            self._json({"ok": False, "error": str(e), "melding": str(e)}, 500)
+
 
 def serve(host: str = "127.0.0.1", port: int = 8000) -> int:
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f">> CryptoDokter dashboard: http://{host}:{port}")
-    print("   (alleen lezen + papier; stoppen met Ctrl-C)")
+    print("   (papier: scannen/kopen/verkopen mag; echte orders nooit. Ctrl-C stopt)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

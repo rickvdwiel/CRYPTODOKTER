@@ -6,7 +6,9 @@ marktdata in, papieren portefeuille uit.
 from __future__ import annotations
 
 # Portefeuille
-START_BUDGET_EUR = 50.0          # startkapitaal (papier)
+# Gereserveerd live-kapitaal later: €100. Papier draait op hetzelfde bedrag
+# zodat fees/slippage dezelfde schaal hebben. Geen echte orders.
+START_BUDGET_EUR = 100.0         # startkapitaal (papier = gereserveerd bedrag)
 MAX_POSITIONS = 5                # nooit meer dan dit aantal open posities
 POSITION_SIZE_PCT = 20.0         # % van startbudget per positie
 MIN_POSITION_EUR = 2.0           # kleiner heeft geen zin (fees vreten alles)
@@ -28,3 +30,11 @@ MAX_HOLD_DAYS = 14               # dood in het water? eruit
 MIN_SCORE = 35.0                 # onder deze radarscore niet kopen
 MIN_LIQUIDITY_USD = 25_000.0     # onder deze liquiditeit nooit kopen (rug-risico)
 EUR_USD = 1.08                   # ruwe omrekening; prijzen komen in USD binnen
+
+# Scheduler (trackrecord): launchd vuurt elk uur één cyclus
+TICK_EVERY_HOURS = 1.0           # prijzen + exit-regels
+SCAN_EVERY_HOURS = 24.0          # radar-kandidaten virtueel kopen
+LOG_MAX_BYTES = 1_000_000
+LOG_BACKUPS = 3
+LAUNCHD_MINUTE = 7               # elke uur :07
+LAUNCHD_LABEL = "nl.cryptodokter.paperbot"

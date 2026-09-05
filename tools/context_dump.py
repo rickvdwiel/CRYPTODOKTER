@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = ["radar", "bot", "backtest", "web"]
 CORE_FILES = [
     "radar/run_radar.py", "radar/signals.py", "radar/grok.py",
-    "bot/portfolio.py", "bot/config.py",
+    "bot/portfolio.py", "bot/config.py", "bot/scheduler.py",
 ]
 
 

@@ -28,7 +28,7 @@ class TestBuySell(PaperTestCase):
         pf = Portfolio()
         pos = pf.buy("PONS", 1.0, budget_eur=10.0, liquidity_usd=1_000_000)
         self.assertIsNotNone(pos)
-        self.assertAlmostEqual(pf.cash_eur, 40.0)
+        self.assertAlmostEqual(pf.cash_eur, config.START_BUDGET_EUR - 10.0)
         self.assertAlmostEqual(pf.fees_paid_eur, 10.0 * config.FEE_PCT / 100)
         # fill = prijs + slippage
         self.assertAlmostEqual(pos.entry_price, 1.0 * (1 + config.SLIPPAGE_PCT / 100))
@@ -152,6 +152,40 @@ class TestRapportage(PaperTestCase):
         pf = Portfolio()
         pf.buy("EQ", 1.0, budget_eur=10.0)
         self.assertLess(pf.equity_eur({}), config.START_BUDGET_EUR)  # fees
+
+
+class TestPerform(PaperTestCase):
+    def test_reset_leegt_portefeuille(self):
+        from bot import run_bot
+        pf = Portfolio()
+        pf.buy("X", 1.0, budget_eur=10.0)
+        pf.save()
+        r = run_bot.perform_reset()
+        self.assertTrue(r["ok"])
+        self.assertEqual(Portfolio.load().positions, {})
+
+    def test_oordeel_filter(self):
+        from bot import run_bot
+        actie, reden = run_bot._oordeel(10, 100_000, 1.0, False, 0)
+        self.assertEqual(actie, "overslaan")
+        self.assertIn("score", reden)
+        actie, reden = run_bot._oordeel(40, 100, 1.0, False, 0)
+        self.assertEqual(actie, "overslaan")
+        self.assertIn("liquiditeit", reden)
+        actie, reden = run_bot._oordeel(40, 100_000, 1.0, False, 0)
+        self.assertEqual(actie, "zou_kopen")
+
+    def test_tick_zonder_posities(self):
+        from bot import run_bot
+        self._online = run_bot._online
+        run_bot._online = lambda: True
+        try:
+            r = run_bot.perform_tick()
+        finally:
+            run_bot._online = self._online
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["exits"], [])
+        self.assertIn("Geen open posities", r["melding"])
 
 
 class TestPrijsHelpers(unittest.TestCase):

@@ -69,8 +69,7 @@ cryptodokter/
 │   ├── momentum.py   # Bitvavo-REST + optionele ccxt
 │   ├── signals.py    # scoring en risico-label
 │   └── run_radar.py  # CLI
-├── bot/              # (volgende stap) paper-bot, consolidatie van de
-│                     #   Botvavo 2/3 + Rust-core uit de oude mappen
+├── bot/              # paper-bot + scheduler (papier, geen echte orders)
 ├── backtest/         # (volgende stap) historische evaluatie
 ├── docs/             # architectuur + bot-consolidatieplan
 └── data/             # watchlist, outputs
@@ -104,8 +103,24 @@ python -m bot.run_bot --reset           # terug naar het startbudget
 ```
 
 Instellingen (budget, risicoregels, koopfilter) staan in `bot/config.py`.
+Papieren startbudget is **€100** (20% = €20 per positie, max 5). Dat is het
+bedrag dat later gereserveerd wordt om te traden — eerst weken papier.
 De stand komt in `data/paper_portfolio.json`, elke trade in `data/paper_trades.csv`.
 Laat dit weken draaien vóór je overweegt om echt geld te riskeren.
+
+### Automatisch laten tikken (trackrecord)
+
+Zonder klok blijft de papieren portefeuille op één trade staan. De scheduler
+doet elk uur `--tick` (prijzen + exits) en eens per dag `--scan` (nieuwe
+kandidaten), schrijft naar `data/bot.log` (roteert bij 1 MB).
+
+```bash
+python -m bot.scheduler              # één cyclus (tick, en scan als de dag om is)
+python -m bot.scheduler --status     # laatste tick/scan
+python -m bot.scheduler --loop       # voorgrond, Ctrl-C stopt
+python -m bot.scheduler --install    # macOS: launchd-agent, elk uur :07
+python -m bot.scheduler --uninstall
+```
 
 ## Backtest — werken de regels eigenlijk?
 
@@ -127,8 +142,9 @@ python -m web.server              # → http://127.0.0.1:8000
 python -m web.server --port 8080  # andere poort
 ```
 
-Toont je papieren portefeuille, de actuele radar-kandidaten met risico-labels en
-je watchlist. Alleen lezen: het dashboard handelt niet, ook niet op papier.
+Toont je papieren portefeuille, radar-kandidaten, watchlist, scheduler en
+trade-logboek. Vanaf de pagina kun je scannen, kopen, verkopen, tick'en en
+resetten — allemaal papier, nooit een echte order.
 
 ## Grok gebruiken
 

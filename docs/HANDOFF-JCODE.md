@@ -95,7 +95,7 @@ cryptodokter/
    `risk_label`, `momentum.check_symbol` (met mock-data).
 
 ### Fase 2 — Paper-bot (daarna, zie ook BOT-CONSOLIDATION.md)
-- `bot/` vullen: paper-portefeuille (€50 start), alleen virtueel handelen op
+- `bot/` vullen: paper-portefeuille (€100 start), alleen virtueel handelen op
   radar-kandidaten, met fees/slippage + stop-loss. Alleen Bitvavo-public-data
   (geen keys), géén live-orders.
 - Logging per dag (CSV/JSON) zodat je ziet of een strategie werkt vóór je geld
@@ -146,7 +146,7 @@ cryptodokter/
     save_raw, signals.score/risk_label, momentum.check_symbol/sweep met mocks).
     Draaien: `.venv/bin/python -m unittest discover -s tests -t . -q`.
 - **[jcode, sep 2026] Fase 2 gebouwd — paper-bot draait:**
-  - `bot/config.py`: €50 startbudget, max 5 posities, 20%/positie, fee 0,25%,
+  - `bot/config.py`: €100 startbudget, max 5 posities, 20%/positie, fee 0,25%,
     slippage 1% (5% bij liquiditeit < $50k), stop-loss -25%, take-profit +60%,
     trailing -20%, max 14 dagen hold, koopfilter score >= 35 en liquiditeit >= $25k.
   - `bot/portfolio.py`: papieren portefeuille met fees/slippage, trailing-high,
@@ -198,4 +198,20 @@ cryptodokter/
     `--full` voegt de kern-broncode toe, `--module` filtert per pakket.
     Compact ~13k tekens, volledig ~42k: allebei chat-proof.
   - `tests/test_tools.py`: 11 tests. **Totaal 72 groen.**
+- **[grok, sep 2026] Fase 2 — scheduler voor trackrecord:**
+  - `bot/scheduler.py`: één cyclus per aanroep (tick elk uur, scan elke 24u),
+    `--loop` voor de voorgrond, `--once tick|scan`, `--status`,
+    `--install`/`--uninstall` voor een macOS launchd-agent
+    (`nl.cryptodokter.paperbot`, elk uur om :07, RunAtLoad).
+  - Logrotatie via `RotatingFileHandler` naar `data/bot.log` (1 MB, 3 backups).
+    State in `data/scheduler_state.json` (allebei gitignored).
+  - TEST-regels uit `data/paper_trades.csv` gehaald (lekte testruns); AMC blijft.
+  - `tests/test_scheduler.py`: due-logica, cyclus, only-tick, foutentelling,
+    logrotatie, plist, install-zonder-launchctl.
+- **[grok, sep 2026] Interactief dashboard (papier):**
+  - `web/server.py`: knoppen voor scan/tick/buy/sell/reset/scheduler-cyclus,
+    trade-logboek, scheduler-status. POST `/api/{scan,tick,buy,sell,reset,cycle}`.
+    Nooit een echte order. Koop-knop alleen bij score/liquiditeit-filter.
+  - `bot/run_bot.py`: `perform_*` functies (gestructureerde dicts) gedeeld door
+    CLI en dashboard.
 
