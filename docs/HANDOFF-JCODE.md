@@ -207,5 +207,11 @@ cryptodokter/
     State in `data/scheduler_state.json` (allebei gitignored).
   - TEST-regels uit `data/paper_trades.csv` gehaald (lekte testruns); AMC blijft.
   - `tests/test_scheduler.py`: due-logica, cyclus, only-tick, foutentelling,
-    logrotatie, plist, install-zonder-launchctl. **Totaal 90 groen.**
+    logrotatie, plist, install-zonder-launchctl.
+- **[grok, sep 2026] Interactief dashboard (papier):**
+  - `web/server.py`: knoppen voor scan/tick/buy/sell/reset/scheduler-cyclus,
+    trade-logboek, scheduler-status. POST `/api/{scan,tick,buy,sell,reset,cycle}`.
+    Nooit een echte order. Koop-knop alleen bij score/liquiditeit-filter.
+  - `bot/run_bot.py`: `perform_*` functies (gestructureerde dicts) gedeeld door
+    CLI en dashboard.
 

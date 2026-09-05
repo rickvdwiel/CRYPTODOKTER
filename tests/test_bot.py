@@ -154,6 +154,29 @@ class TestRapportage(PaperTestCase):
         self.assertLess(pf.equity_eur({}), config.START_BUDGET_EUR)  # fees
 
 
+class TestPerform(PaperTestCase):
+    def test_reset_leegt_portefeuille(self):
+        from bot import run_bot
+        pf = Portfolio()
+        pf.buy("X", 1.0, budget_eur=10.0)
+        pf.save()
+        r = run_bot.perform_reset()
+        self.assertTrue(r["ok"])
+        self.assertEqual(Portfolio.load().positions, {})
+
+    def test_tick_zonder_posities(self):
+        from bot import run_bot
+        self._online = run_bot._online
+        run_bot._online = lambda: True
+        try:
+            r = run_bot.perform_tick()
+        finally:
+            run_bot._online = self._online
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["exits"], [])
+        self.assertIn("Geen open posities", r["melding"])
+
+
 class TestPrijsHelpers(unittest.TestCase):
     def test_price_eur_uit_exchange(self):
         from bot import run_bot

@@ -73,125 +73,236 @@ def cmd_status() -> int:
     return 0
 
 
-def cmd_tick() -> int:
-    if not _require_online():
-        return 1
+def _offline_result() -> dict:
+    return {
+        "ok": False, "online": False,
+        "melding": "Geen internetverbinding: live prijzen zijn nodig voor deze actie.",
+    }
+
+
+def _pos_dict(pos) -> dict:
+    return {
+        "symbol": pos.symbol,
+        "qty": pos.qty,
+        "entry_price": pos.entry_price,
+        "cost_eur": pos.cost_eur,
+        "note": pos.note,
+        "opened_at": pos.opened_at,
+    }
+
+
+def perform_tick() -> dict:
+    """Prijzen verversen + exit-regels. Geen prints — CLI en dashboard delen dit."""
+    if not _online():
+        return _offline_result()
     pf = Portfolio.load()
     if not pf.positions:
-        print("Geen open posities. Draai `--scan` om kandidaten te zoeken.")
-        return 0
+        return {"ok": True, "online": True, "exits": [],
+                "melding": "Geen open posities. Draai een scan om kandidaten te zoeken.",
+                "summary": pf.summary()}
     prices = current_prices(pf)
-    exits = pf.check_exits(prices)
-    for sym, reason, pnl in exits:
-        print(f"VERKOCHT (papier): {sym} — {reason} → €{pnl:+.2f}")
-    if not exits:
-        print("Geen exit-signalen; posities blijven staan.")
+    raw = pf.check_exits(prices)
     pf.save()
-    print()
-    print_summary(pf, prices)
-    return 0
+    exits = [{"symbol": s, "reden": r, "pnl_eur": p} for s, r, p in raw]
+    if exits:
+        melding = "; ".join(f"{e['symbol']} {e['reden']} → €{e['pnl_eur']:+.2f}" for e in exits)
+    else:
+        melding = "Geen exit-signalen; posities blijven staan."
+    return {"ok": True, "online": True, "exits": exits, "melding": melding,
+            "summary": pf.summary(prices)}
 
 
-def cmd_scan(dry_run: bool = False) -> int:
-    if not _require_online():
-        return 1
+def perform_scan(dry_run: bool = False) -> dict:
+    """Radar draaien en (virtueel) kopen wat door het filter komt."""
+    if not _online():
+        return _offline_result()
     pf = Portfolio.load()
-    print(PAPER_NOTICE)
-    print(DISCLAIMER + "\n")
-    print(">> radar-kandidaten ophalen (DexScreener trending)...")
+    events = []
     profiles = dexscreener.trending_tokens(limit=radar_config.DEX_TOP_N)
     addrs = [p.get("tokenAddress", "") for p in profiles if p.get("tokenAddress")]
     if not addrs:
-        print("Geen kandidaten van de radar (bron down?). Probeer later opnieuw.")
-        return 0
+        return {"ok": True, "online": True, "dry_run": dry_run, "gekocht": 0,
+                "events": [], "melding": "Geen kandidaten van de radar (bron down?).",
+                "summary": pf.summary()}
 
     gekocht = 0
     for addr in addrs[:radar_config.MAX_SCAN_TOKENS]:
         if len(pf.positions) >= config.MAX_POSITIONS:
-            print("Maximum aantal posities bereikt; stoppen met kopen.")
+            events.append({"actie": "stop", "symbol": "", "reden": "max posities"})
             break
         info = analyze_token(addr, show_x=False)
-        sym = info.get("symbol", addr)[:16]
+        sym = (info.get("symbol") or addr)[:16]
         total = info["score"]["total"]
         liq = _liquidity(info) or 0.0
         price = _price_eur(info)
-
         if total < config.MIN_SCORE:
-            print(f"  overslaan {sym:<12} score {total} < {config.MIN_SCORE}")
+            events.append({"actie": "overslaan", "symbol": sym,
+                           "reden": f"score {total} < {config.MIN_SCORE}"})
             continue
         if liq < config.MIN_LIQUIDITY_USD:
-            print(f"  overslaan {sym:<12} liquiditeit ${liq:,.0f} te laag (rug-risico)")
+            events.append({"actie": "overslaan", "symbol": sym,
+                           "reden": f"liquiditeit ${liq:,.0f} te laag"})
             continue
         if not price:
-            print(f"  overslaan {sym:<12} geen bruikbare prijs")
+            events.append({"actie": "overslaan", "symbol": sym, "reden": "geen prijs"})
             continue
         if sym in pf.positions:
-            print(f"  overslaan {sym:<12} al in portefeuille")
+            events.append({"actie": "overslaan", "symbol": sym, "reden": "al in portefeuille"})
             continue
         if dry_run:
-            print(f"  ZOU KOPEN {sym:<12} score {total} @ €{price:.8f}")
+            events.append({"actie": "zou_kopen", "symbol": sym, "score": total,
+                           "prijs_eur": price, "reden": f"score {total}"})
             continue
         pos = pf.buy(sym, price, liquidity_usd=liq, note=f"radar score {total}")
         if pos:
             gekocht += 1
-            print(f"  GEKOCHT (papier) {sym:<12} score {total} @ €{pos.entry_price:.8f} "
-                  f"voor €{pos.cost_eur:.2f}")
+            events.append({"actie": "gekocht", "symbol": sym, "score": total,
+                           "prijs_eur": pos.entry_price, "bedrag_eur": pos.cost_eur,
+                           "reden": f"radar score {total}"})
         else:
-            print(f"  kon {sym} niet kopen (kas/limiet)")
+            events.append({"actie": "geweigerd", "symbol": sym, "reden": "kas/limiet"})
 
     if not dry_run:
         pf.save()
-    print(f"\n{gekocht} nieuwe papieren positie(s).")
+    melding = (f"{gekocht} nieuwe papieren positie(s)." if not dry_run
+               else f"{sum(1 for e in events if e['actie'] == 'zou_kopen')} kandidaat(en) zou(den) gekocht worden.")
+    return {"ok": True, "online": True, "dry_run": dry_run, "gekocht": gekocht,
+            "events": events, "melding": melding, "summary": pf.summary()}
+
+
+def perform_buy(symbol: str, amount: Optional[float] = None,
+                require_filter: bool = False) -> dict:
+    """Virtuele koop van één symbool."""
+    if not _online():
+        return _offline_result()
+    pf = Portfolio.load()
+    info = analyze_token(symbol, symbol, show_x=False)
+    price = _price_eur(info)
+    liq = _liquidity(info)
+    total = (info.get("score") or {}).get("total")
+    if not price:
+        return {"ok": False, "online": True,
+                "melding": f"Geen prijs gevonden voor {symbol}; koop niet uitgevoerd."}
+    if require_filter:
+        if total is not None and total < config.MIN_SCORE:
+            return {"ok": False, "online": True,
+                    "melding": f"{symbol.upper()} score {total} < {config.MIN_SCORE}."}
+        if (liq or 0) < config.MIN_LIQUIDITY_USD:
+            return {"ok": False, "online": True,
+                    "melding": f"{symbol.upper()} liquiditeit te laag (rug-risico)."}
+    pos = pf.buy(symbol, price, budget_eur=amount, liquidity_usd=liq,
+                 note="handmatig" if not require_filter else f"radar score {total}")
+    if not pos:
+        return {"ok": False, "online": True,
+                "melding": f"Koop geweigerd (al in bezit, te weinig kas, of max {config.MAX_POSITIONS} posities)."}
+    pf.save()
+    return {
+        "ok": True, "online": True,
+        "positie": _pos_dict(pos),
+        "melding": (f"GEKOCHT (papier): {pos.qty:.6f} {pos.symbol} @ €{pos.entry_price:.8f} "
+                    f"voor €{pos.cost_eur:.2f}"),
+        "summary": pf.summary({pos.symbol: price}),
+    }
+
+
+def perform_sell(symbol: str) -> dict:
+    """Virtuele verkoop van de hele positie."""
+    if not _online():
+        return _offline_result()
+    pf = Portfolio.load()
+    sym = symbol.upper()
+    if sym not in pf.positions:
+        return {"ok": False, "online": True,
+                "melding": f"{sym} zit niet in de papieren portefeuille."}
+    info = analyze_token(symbol, symbol, show_x=False)
+    price = _price_eur(info)
+    if not price:
+        return {"ok": False, "online": True,
+                "melding": f"Geen prijs gevonden voor {symbol}; verkoop niet uitgevoerd."}
+    pnl = pf.sell(symbol, price, reason="handmatig", liquidity_usd=_liquidity(info))
+    pf.save()
+    return {"ok": True, "online": True, "symbol": sym, "pnl_eur": pnl,
+            "melding": f"VERKOCHT (papier): {sym} → €{pnl:+.2f}",
+            "summary": pf.summary()}
+
+
+def perform_reset() -> dict:
+    pf = Portfolio()
+    pf.save()
+    return {"ok": True,
+            "melding": f"Papieren portefeuille gereset naar €{config.START_BUDGET_EUR:.2f}. "
+                       "(Het logboek blijft staan.)",
+            "summary": pf.summary()}
+
+
+def cmd_tick() -> int:
+    r = perform_tick()
+    if not r["ok"]:
+        print(r["melding"])
+        return 1
+    if not r.get("exits") and "Geen open posities" in r["melding"]:
+        print(r["melding"])
+        return 0
+    for e in r.get("exits") or []:
+        print(f"VERKOCHT (papier): {e['symbol']} — {e['reden']} → €{e['pnl_eur']:+.2f}")
+    if not r.get("exits"):
+        print(r["melding"])
+    pf = Portfolio.load()
     print()
     print_summary(pf)
     return 0
 
 
+def cmd_scan(dry_run: bool = False) -> int:
+    if not _online():
+        print("Geen internetverbinding: live prijzen zijn nodig voor deze actie.\n"
+              "Gebruik `--status` om de opgeslagen portefeuille wel te bekijken.")
+        return 1
+    print(PAPER_NOTICE)
+    print(DISCLAIMER + "\n")
+    print(">> radar-kandidaten ophalen (DexScreener trending)...")
+    r = perform_scan(dry_run=dry_run)
+    if not r["ok"]:
+        print(r["melding"])
+        return 1
+    labels = {
+        "overslaan": "overslaan",
+        "zou_kopen": "ZOU KOPEN",
+        "gekocht": "GEKOCHT (papier)",
+        "geweigerd": "kon niet kopen",
+        "stop": "stop",
+    }
+    for e in r.get("events") or []:
+        act = labels.get(e["actie"], e["actie"])
+        extra = e.get("reden") or ""
+        print(f"  {act:<18} {e.get('symbol', ''):<12} {extra}")
+    print(f"\n{r['melding']}")
+    print()
+    print_summary(Portfolio.load())
+    return 0
+
+
 def cmd_buy(symbol: str, amount: Optional[float]) -> int:
-    if not _require_online():
+    r = perform_buy(symbol, amount)
+    print(r["melding"])
+    if not r["ok"]:
         return 1
-    pf = Portfolio.load()
-    info = analyze_token(symbol, symbol, show_x=False)
-    price = _price_eur(info)
-    if not price:
-        print(f"Geen prijs gevonden voor {symbol}; koop niet uitgevoerd.")
-        return 1
-    pos = pf.buy(symbol, price, budget_eur=amount, liquidity_usd=_liquidity(info),
-                 note="handmatig")
-    if not pos:
-        print(f"Koop geweigerd (al in bezit, te weinig kas, of max {config.MAX_POSITIONS} posities).")
-        return 1
-    pf.save()
-    print(f"GEKOCHT (papier): {pos.qty:.6f} {symbol.upper()} @ €{pos.entry_price:.8f} "
-          f"voor €{pos.cost_eur:.2f}")
-    print_summary(pf, {symbol.upper(): price})
+    print_summary(Portfolio.load())
     return 0
 
 
 def cmd_sell(symbol: str) -> int:
-    if not _require_online():
+    r = perform_sell(symbol)
+    print(r["melding"])
+    if not r["ok"]:
         return 1
-    pf = Portfolio.load()
-    if symbol.upper() not in pf.positions:
-        print(f"{symbol.upper()} zit niet in de papieren portefeuille.")
-        return 1
-    info = analyze_token(symbol, symbol, show_x=False)
-    price = _price_eur(info)
-    if not price:
-        print(f"Geen prijs gevonden voor {symbol}; verkoop niet uitgevoerd.")
-        return 1
-    pnl = pf.sell(symbol, price, reason="handmatig", liquidity_usd=_liquidity(info))
-    pf.save()
-    print(f"VERKOCHT (papier): {symbol.upper()} → €{pnl:+.2f}")
-    print_summary(pf)
+    print_summary(Portfolio.load())
     return 0
 
 
 def cmd_reset() -> int:
-    pf = Portfolio()
-    pf.save()
-    print(f"Papieren portefeuille gereset naar €{config.START_BUDGET_EUR:.2f}. "
-          f"(Het logboek data/paper_trades.csv blijft staan.)")
+    r = perform_reset()
+    print(r["melding"])
     return 0
 
 

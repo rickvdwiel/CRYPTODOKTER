@@ -140,8 +140,9 @@ python -m web.server              # → http://127.0.0.1:8000
 python -m web.server --port 8080  # andere poort
 ```
 
-Toont je papieren portefeuille, de actuele radar-kandidaten met risico-labels en
-je watchlist. Alleen lezen: het dashboard handelt niet, ook niet op papier.
+Toont je papieren portefeuille, radar-kandidaten, watchlist, scheduler en
+trade-logboek. Vanaf de pagina kun je scannen, kopen, verkopen, tick'en en
+resetten — allemaal papier, nooit een echte order.
 
 ## Grok gebruiken
 

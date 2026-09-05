@@ -2,7 +2,7 @@
 
 > **Voor:** Grok (SuperGrok-abonnement, dus chat/copy-paste, **geen API-key**)
 > **Repo:** https://github.com/rickvdwiel/CRYPTODOKTER (branch `main`)
-> **Stand:** september 2026 · Python 3.9 · macOS · 90 tests groen
+> **Stand:** september 2026 · Python 3.9 · macOS · 101 tests groen
 > **Vorige handoff:** `docs/HANDOFF-JCODE.md` (technische changelog per fase)
 
 ---
@@ -127,7 +127,7 @@ CRYPTODOKTER/
 │   └── server.py              # FASE 3 — dashboard (stdlib HTTP, geen Flask)
 ├── tools/
 │   └── context_dump.py        # codebase samenvatten om in Grok te plakken
-├── tests/                     # 90 tests, allemaal zonder netwerk
+├── tests/                     # 101 tests, allemaal zonder netwerk
 └── data/                      # watchlist + lokale output (in .gitignore)
 ```
 
@@ -159,11 +159,11 @@ python -m bot.scheduler --install            # macOS launchd, elk uur
 
 # FASE 3 — backtest + dashboard
 python -m backtest.engine --symbol PEPE-EUR --interval 1h --limit 1000
-python -m web.server                             # → http://127.0.0.1:8000
+python -m web.server                             # → http://127.0.0.1:8000  (interactief, papier)
 
 # Altijd na een wijziging:
 python -m compileall -q radar bot backtest web tools
-python -m unittest discover -s tests -t . -q     # 90 tests
+python -m unittest discover -s tests -t . -q     # 101 tests
 ```
 
 ---
