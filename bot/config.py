@@ -33,7 +33,7 @@ EUR_USD = 1.08                   # ruwe omrekening; prijzen komen in USD binnen
 
 # Scheduler (trackrecord): launchd vuurt elk uur één cyclus
 TICK_EVERY_HOURS = 1.0           # prijzen + exit-regels
-SCAN_EVERY_HOURS = 24.0          # radar-kandidaten virtueel kopen
+SCAN_EVERY_HOURS = 1.0           # elk uur scannen (papier, trackrecord)
 LOG_MAX_BYTES = 1_000_000
 LOG_BACKUPS = 3
 LAUNCHD_MINUTE = 7               # elke uur :07
