@@ -160,9 +160,13 @@ def scan_steps(dry_run: bool = True):
         liq = _liquidity(info) or 0.0
         price = _price_eur(info)
         actie, reden = _oordeel(total, liq, price, sym in pf.positions, len(pf.positions))
+        dex = info.get("dex") or {}
         ev = {
             "fase": "check", "i": i, "n": n, "actie": actie, "symbol": sym,
             "score": total, "liq": liq, "prijs_eur": price, "reden": reden,
+            "chain": dex.get("chain") or "",
+            "quote": dex.get("quote") or "",
+            "url": dex.get("url") or "",
         }
         if actie == "zou_kopen" and not dry_run:
             pos = pf.buy(sym, price, liquidity_usd=liq, note=f"radar score {total}")

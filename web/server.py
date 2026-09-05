@@ -64,6 +64,7 @@ def _slim(info: dict) -> dict:
         "liquidity_usd": dex.get("liquidity_usd", 0),
         "volume_h24": dex.get("volume_usd_h24", 0),
         "chain": dex.get("chain", ""),
+        "quote": dex.get("quote", ""),
         "url": dex.get("url", ""),
         "exchange": (exch[0]["pair"] if exch else ""),
         "x_count": getattr(info.get("x"), "count", 0),
