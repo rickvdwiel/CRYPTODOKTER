@@ -2,7 +2,7 @@
 
 > **Voor:** Grok (SuperGrok-abonnement, dus chat/copy-paste, **geen API-key**)
 > **Repo:** https://github.com/rickvdwiel/CRYPTODOKTER (branch `main`)
-> **Stand:** september 2026 · Python 3.9 · macOS · 72 tests groen
+> **Stand:** september 2026 · Python 3.9 · macOS · 90 tests groen
 > **Vorige handoff:** `docs/HANDOFF-JCODE.md` (technische changelog per fase)
 
 ---
@@ -117,16 +117,17 @@ CRYPTODOKTER/
 │       ├── news_rss.py        # Google + Bing RSS
 │       └── dexscreener.py     # trending, search_pairs, best_pair, pair_into
 ├── bot/                       # FASE 2 — paper-bot (virtueel)
-│   ├── config.py              # budget + risicoregels + koopfilter
+│   ├── config.py              # budget + risicoregels + koopfilter + scheduler
 │   ├── portfolio.py           # Portfolio/Position, fees, slippage, exits
-│   └── run_bot.py             # CLI: status/tick/scan/buy/sell/reset
+│   ├── run_bot.py             # CLI: status/tick/scan/buy/sell/reset
+│   └── scheduler.py           # uurlijkse tick, dagelijkse scan, launchd
 ├── backtest/
 │   └── engine.py              # FASE 3 — backtest op Bitvavo-candles
 ├── web/
 │   └── server.py              # FASE 3 — dashboard (stdlib HTTP, geen Flask)
 ├── tools/
 │   └── context_dump.py        # codebase samenvatten om in Grok te plakken
-├── tests/                     # 72 tests, allemaal zonder netwerk
+├── tests/                     # 90 tests, allemaal zonder netwerk
 └── data/                      # watchlist + lokale output (in .gitignore)
 ```
 
@@ -153,6 +154,8 @@ python -m bot.run_bot --tick                     # prijzen + exit-regels
 python -m bot.run_bot --buy PONS --amount 10
 python -m bot.run_bot --sell PONS
 python -m bot.run_bot --reset
+python -m bot.scheduler --status
+python -m bot.scheduler --install            # macOS launchd, elk uur
 
 # FASE 3 — backtest + dashboard
 python -m backtest.engine --symbol PEPE-EUR --interval 1h --limit 1000
@@ -160,7 +163,7 @@ python -m web.server                             # → http://127.0.0.1:8000
 
 # Altijd na een wijziging:
 python -m compileall -q radar bot backtest web tools
-python -m unittest discover -s tests -t . -q     # 72 tests
+python -m unittest discover -s tests -t . -q     # 90 tests
 ```
 
 ---
@@ -208,15 +211,21 @@ staan in `.gitignore`).
 
 ## 6. Wat er nog te doen is (voorkeursvolgorde)
 
-### A. Trackrecord opbouwen (het belangrijkste, en het saaiste)
+### A. Trackrecord opbouwen — GEDAAN (scheduler staat)
 
-De bot heeft **1 papieren trade** gemaakt. Dat zegt niets. Laat `--scan` en
-`--tick` automatisch draaien (launchd op macOS, of cron) zodat er over weken
-echte data ontstaat. Pas na tientallen trades mag je iets zeggen over of de
-strategie werkt.
+`bot/scheduler.py` draait één cyclus per aanroep: `--tick` als het uur om is,
+`--scan` als 24 uur om is. Logrotatie in `data/bot.log`. Op macOS:
 
-Concreet: een `bot/scheduler.py` of een launchd-plist die elk uur `--tick` en
-dagelijks `--scan` draait, met logrotatie.
+```bash
+python -m bot.scheduler --install    # launchd, elk uur om :07, RunAtLoad
+python -m bot.scheduler --status
+```
+
+De papieren portefeuille had 1 echte trade (AMC) plus TEST-regels in de CSV
+van eerdere testruns; die TEST-regels zijn uit het logboek gehaald. De
+scheduler moet **wél geladen** zijn (`--install`) anders blijft het boek
+stilstaan. Pas na tientallen gesloten trades mag je iets zeggen over de
+strategie. **Niet** live gaan.
 
 ### B. De X-laag versterken (jouw specialiteit)
 

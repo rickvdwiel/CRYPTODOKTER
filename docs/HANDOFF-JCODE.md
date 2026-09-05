@@ -198,4 +198,14 @@ cryptodokter/
     `--full` voegt de kern-broncode toe, `--module` filtert per pakket.
     Compact ~13k tekens, volledig ~42k: allebei chat-proof.
   - `tests/test_tools.py`: 11 tests. **Totaal 72 groen.**
+- **[grok, sep 2026] Fase 2 — scheduler voor trackrecord:**
+  - `bot/scheduler.py`: één cyclus per aanroep (tick elk uur, scan elke 24u),
+    `--loop` voor de voorgrond, `--once tick|scan`, `--status`,
+    `--install`/`--uninstall` voor een macOS launchd-agent
+    (`nl.cryptodokter.paperbot`, elk uur om :07, RunAtLoad).
+  - Logrotatie via `RotatingFileHandler` naar `data/bot.log` (1 MB, 3 backups).
+    State in `data/scheduler_state.json` (allebei gitignored).
+  - TEST-regels uit `data/paper_trades.csv` gehaald (lekte testruns); AMC blijft.
+  - `tests/test_scheduler.py`: due-logica, cyclus, only-tick, foutentelling,
+    logrotatie, plist, install-zonder-launchctl. **Totaal 90 groen.**
 
