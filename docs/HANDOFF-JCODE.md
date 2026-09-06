@@ -199,3 +199,9 @@ cryptodokter/
     Compact ~13k tekens, volledig ~42k: allebei chat-proof.
   - `tests/test_tools.py`: 11 tests. **Totaal 72 groen.**
 
+
+[grok, sep 2026] YOLO-paper + scheduler:
+- bot/config.py: START_BUDGET_EUR=20, MAX_POSITIONS=2, POSITION_SIZE_PCT=50, snellere exits (SL -20 / TP +40 / trail -15 / max 7d). Geen live keys.
+- bot/scheduler.py: uurlijks --tick, dagelijks --scan; rotating log data/scheduler.log; CLI --once/--tick-only/--scan-only/--dry-run.
+- tests/test_scheduler.py: offline tests (logging, tick/scan fail-open, CLI).
+- deploy/nl.cryptodokter.paperbot.plist + docs/SCHEDULER.md voor macOS launchd.
