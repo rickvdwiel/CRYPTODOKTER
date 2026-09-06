@@ -56,7 +56,8 @@ def analyze_token(token: str, symbol: str | None = None, show_x: bool = True) ->
     except Exception as e:  # noqa: BLE001 — vrije bronnen zijn fragiel
         print(f"  (waarschuwing: trend-laag faalde: {e})")
         info["x"] = info.get("x") or x_scraper.XSignal(query=sym)
-        info["news"] = info.get("news") or {"google": [], "bing": [], "total": 0, "newest": ""}
+        info["news"] = info.get("news") or {
+            "google": [], "bing": [], "watchers": {}, "total": 0, "newest": ""}
 
     exch_change = None
     if info.get("exch", {}).get("exchanges"):

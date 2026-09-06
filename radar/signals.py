@@ -77,7 +77,11 @@ def print_report(name: str, info: dict) -> None:
     n = info.get("news")
     if n is not None:
         print(f"  Nieuws   : {n['total']} items (laatste: {n.get('newest','?')})")
-        for it in n.get("google", [])[:2] + n.get("bing", [])[:2]:
+        samples = n.get("google", [])[:2] + n.get("bing", [])[:2]
+        for src, hits in (n.get("watchers") or {}).items():
+            for it in hits[:1]:
+                samples.append({**it, "title": f"[{src}] {it.get('title', '')}"})
+        for it in samples[:6]:
             print(f"    • {it['title'][:100]}")
     print(f"  Score-delen: {parts}")
     print()

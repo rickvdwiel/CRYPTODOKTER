@@ -356,6 +356,7 @@ function renderInsp(d){
       ${d.quote?`<span class="pair ${stock?'stock':''}">/${d.quote}${stock?' stock-meme':''}</span>`:''}
     </div>
     <div class="m">${d.reden||d.risk||''}</div>
+    ${d.news||d.watchers?`<div class="m">Nieuws ${d.news||0}${d.watchers?(' · watchers '+d.watchers):''}</div>`:''}
     <div class="bars">
       <div class="b"><label><span>Score</span><span class="mono">${score||'—'}</span></label>
         <div class="track"><i style="width:${Math.min(100,score/70*100)}%"></i></div></div>
@@ -476,7 +477,8 @@ async function load(){
       const ok=k.score>=health.min_score && (k.liquidity_usd||0)>=health.min_liq;
       if(!items.find(x=>x.symbol===k.symbol))
         upsert({symbol:k.symbol,score:k.score,liq:k.liquidity_usd,chain:k.chain,quote:k.quote,url:k.url,
-                address:k.address||'',change:k.change_h24,actie:ok?'zou_kopen':'overslaan',reden:k.risk||''});
+                address:k.address||'',change:k.change_h24,news:k.news||0,watchers:k.watchers||0,
+                actie:ok?'zou_kopen':'overslaan',reden:k.risk||''});
     });
     if(!sel && items[0]) select(items[0].symbol);
     else renderAll();

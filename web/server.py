@@ -70,6 +70,7 @@ def _slim(info: dict) -> dict:
         "exchange": (exch[0]["pair"] if exch else ""),
         "x_count": getattr(info.get("x"), "count", 0),
         "news": (info.get("news") or {}).get("total", 0),
+        "watchers": sum(len(v) for v in ((info.get("news") or {}).get("watchers") or {}).values()),
     }
 
 
