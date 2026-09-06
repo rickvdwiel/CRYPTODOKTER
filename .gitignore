@@ -5,4 +5,5 @@ __pycache__/
 config.local.py
 data/*.csv
 data/*.json
+data/*.log
 .DS_Store
