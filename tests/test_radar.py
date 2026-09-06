@@ -129,5 +129,70 @@ class TestMomentum(unittest.TestCase):
             momentum._get = orig_get  # type: ignore[assignment]
 
 
+class TestBestPair(unittest.TestCase):
+    def test_eist_exacte_symboolmatch(self):
+        from radar.sources import dexscreener
+        pairs = [
+            {"baseToken": {"symbol": "OTHER", "address": "0x1"},
+             "liquidity": {"usd": 9_000_000_000}},
+            {"baseToken": {"symbol": "PONS", "address": "0x2"},
+             "liquidity": {"usd": 100}},
+        ]
+        orig_search, orig_tokens = dexscreener.search_pairs, dexscreener.pairs_for_token
+        dexscreener.search_pairs = lambda q: pairs
+        dexscreener.pairs_for_token = lambda a: []
+        try:
+            p = dexscreener.best_pair("PONS")
+            self.assertEqual(p["baseToken"]["symbol"], "PONS")
+            self.assertEqual(p["baseToken"]["address"], "0x2")
+        finally:
+            dexscreener.search_pairs = orig_search
+            dexscreener.pairs_for_token = orig_tokens
+
+    def test_geen_match_niet_hoogste_liquiditeit(self):
+        from radar.sources import dexscreener
+        pairs = [{"baseToken": {"symbol": "AMC", "address": "0x1"},
+                  "liquidity": {"usd": 1_000_000_000}}]
+        orig_search, orig_tokens = dexscreener.search_pairs, dexscreener.pairs_for_token
+        dexscreener.search_pairs = lambda q: pairs
+        dexscreener.pairs_for_token = lambda a: []
+        try:
+            self.assertIsNone(dexscreener.best_pair("POINTLESS"))
+        finally:
+            dexscreener.search_pairs = orig_search
+            dexscreener.pairs_for_token = orig_tokens
+
+    def test_adres_gebruikt_tokens_api(self):
+        from radar.sources import dexscreener
+        called = []
+        addr = "So11111111111111111111111111111111111111112"
+
+        def fake_pairs(a):
+            called.append(a)
+            return [{"baseToken": {"symbol": "X", "address": a},
+                     "liquidity": {"usd": 50}}]
+
+        orig = dexscreener.pairs_for_token
+        orig_search = dexscreener.search_pairs
+        dexscreener.pairs_for_token = fake_pairs
+        dexscreener.search_pairs = lambda q: self.fail("search mag niet bij adres-hit")
+        try:
+            p = dexscreener.best_pair(addr)
+            self.assertEqual(called, [addr])
+            self.assertEqual(p["baseToken"]["address"], addr)
+        finally:
+            dexscreener.pairs_for_token = orig
+            dexscreener.search_pairs = orig_search
+
+    def test_looks_like_address(self):
+        from radar.sources import dexscreener
+        self.assertTrue(dexscreener.looks_like_address(
+            "So11111111111111111111111111111111111111112"))
+        self.assertTrue(dexscreener.looks_like_address(
+            "0x" + "ab" * 20))
+        self.assertFalse(dexscreener.looks_like_address("PONS"))
+        self.assertFalse(dexscreener.looks_like_address("0X1A2B3C4D5E6F"))
+
+
 if __name__ == "__main__":
     unittest.main()

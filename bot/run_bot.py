@@ -51,12 +51,57 @@ def _require_online() -> bool:
     return False
 
 
-def current_prices(pf: Portfolio) -> dict:
-    """Verse EUR-prijzen voor alle open posities."""
-    prices = {}
-    for sym in list(pf.positions):
-        info = analyze_token(sym, sym, show_x=False)
+def _held_address(pf: Portfolio, address: str) -> bool:
+    if not address:
+        return False
+    want = address.lower()
+    return any((p.address or "").lower() == want for p in pf.positions.values())
+
+
+def _implausible_jump(pos, price: float) -> bool:
+    """Zonder contract: een 2.5× sprong in één tick is bijna altijd de verkeerde token."""
+    if pos.address:
+        return False
+    ref = pos.high_price or pos.entry_price
+    if not ref or ref <= 0 or price <= 0:
+        return False
+    return (price / ref) >= config.MAX_UNVERIFIED_TICK_MULT
+
+
+def _price_for_position(pos) -> Optional[float]:
+    """EUR-prijs van déze positie. Adres eerst; ticker alleen bij exacte match."""
+    lookup = pos.address or pos.symbol
+    info = analyze_token(lookup, pos.symbol, show_x=False)
+    dex = info.get("dex") or {}
+    got_addr = dex.get("address") or ""
+    if pos.address:
+        if not dexscreener.same_address(got_addr, pos.address):
+            return None
+        # Alleen DEX-prijs van dit contract — niet Bitvavo-ticker (AMC ≠ AMC-meme).
+        usd = dex.get("price_usd")
+        if not usd:
+            return None
+        try:
+            p = float(usd) / config.EUR_USD
+        except (TypeError, ValueError):
+            return None
+    else:
+        got_sym = (dex.get("symbol") or info.get("symbol") or "").upper()
+        if got_sym and got_sym != pos.symbol.upper():
+            return None
         p = _price_eur(info)
+    if not p:
+        return None
+    if _implausible_jump(pos, p):
+        return None
+    return p
+
+
+def current_prices(pf: Portfolio) -> dict:
+    """Verse EUR-prijzen voor open posities (alleen als de identiteit klopt)."""
+    prices = {}
+    for sym, pos in list(pf.positions.items()):
+        p = _price_for_position(pos)
         if p:
             prices[sym] = p
     return prices
@@ -88,6 +133,9 @@ def _pos_dict(pos) -> dict:
         "cost_eur": pos.cost_eur,
         "note": pos.note,
         "opened_at": pos.opened_at,
+        "address": getattr(pos, "address", "") or "",
+        "chain": getattr(pos, "chain", "") or "",
+        "url": getattr(pos, "url", "") or "",
     }
 
 
@@ -155,21 +203,36 @@ def scan_steps(dry_run: bool = True):
     gekocht = 0
     for i, addr in enumerate(subset, 1):
         info = analyze_token(addr, show_x=False)
-        sym = (info.get("symbol") or addr)[:16]
+        dex = info.get("dex") or {}
+        contract = dex.get("address") or addr
+        raw_sym = (info.get("symbol") or dex.get("symbol") or "").strip()
+        if raw_sym and not dexscreener.looks_like_address(raw_sym):
+            sym = raw_sym.upper()[:16]
+        else:
+            sym = (raw_sym or contract)[:16].upper()
         total = (info.get("score") or {}).get("total")
         liq = _liquidity(info) or 0.0
         price = _price_eur(info)
-        actie, reden = _oordeel(total, liq, price, sym in pf.positions, len(pf.positions))
-        dex = info.get("dex") or {}
+        if dexscreener.junk_symbol(sym):
+            actie, reden = "overslaan", "symbool is een afgekapt contractadres"
+        elif not dex.get("address"):
+            actie, reden = "overslaan", "geen contractadres — prijs niet betrouwbaar te volgen"
+        elif _held_address(pf, dex.get("address")):
+            actie, reden = "overslaan", "dit contract heb je al in de papieren portefeuille"
+        else:
+            actie, reden = _oordeel(total, liq, price, sym in pf.positions, len(pf.positions))
         ev = {
             "fase": "check", "i": i, "n": n, "actie": actie, "symbol": sym,
             "score": total, "liq": liq, "prijs_eur": price, "reden": reden,
             "chain": dex.get("chain") or "",
             "quote": dex.get("quote") or "",
             "url": dex.get("url") or "",
+            "address": contract,
         }
         if actie == "zou_kopen" and not dry_run:
-            pos = pf.buy(sym, price, liquidity_usd=liq, note=f"radar score {total}")
+            pos = pf.buy(sym, price, liquidity_usd=liq, note=f"radar score {total}",
+                         address=dex.get("address") or "", chain=dex.get("chain") or "",
+                         url=dex.get("url") or "")
             if pos:
                 gekocht += 1
                 ev["actie"] = "gekocht"
@@ -233,11 +296,19 @@ def perform_buy_many(symbols) -> dict:
 
 def perform_buy(symbol: str, amount: Optional[float] = None,
                 require_filter: bool = False) -> dict:
-    """Virtuele koop van één symbool."""
+    """Virtuele koop van één token (ticker of contractadres)."""
     if not _online():
         return _offline_result()
     pf = Portfolio.load()
-    info = analyze_token(symbol, symbol, show_x=False)
+    raw = (symbol or "").strip()
+    hint = None if dexscreener.looks_like_address(raw) else raw
+    info = analyze_token(raw, hint, show_x=False)
+    dex = info.get("dex") or {}
+    ticker = (info.get("symbol") or dex.get("symbol") or raw).upper()
+    if dexscreener.junk_symbol(ticker):
+        return {"ok": False, "online": True,
+                "melding": f"{ticker} lijkt op een afgekapt adres; koop overgeslagen."}
+    address = dex.get("address") or ""
     price = _price_eur(info)
     liq = _liquidity(info)
     total = (info.get("score") or {}).get("total")
@@ -245,14 +316,21 @@ def perform_buy(symbol: str, amount: Optional[float] = None,
         return {"ok": False, "online": True,
                 "melding": f"Geen prijs gevonden voor {symbol}; koop niet uitgevoerd."}
     if require_filter:
+        if not address:
+            return {"ok": False, "online": True,
+                    "melding": f"{ticker} heeft geen contractadres — koop geweigerd."}
         if total is not None and total < config.MIN_SCORE:
             return {"ok": False, "online": True,
-                    "melding": f"{symbol.upper()} score {total} < {config.MIN_SCORE}."}
+                    "melding": f"{ticker} score {total} < {config.MIN_SCORE}."}
         if (liq or 0) < config.MIN_LIQUIDITY_USD:
             return {"ok": False, "online": True,
-                    "melding": f"{symbol.upper()} liquiditeit te laag (rug-risico)."}
-    pos = pf.buy(symbol, price, budget_eur=amount, liquidity_usd=liq,
-                 note="handmatig" if not require_filter else f"radar score {total}")
+                    "melding": f"{ticker} liquiditeit te laag (rug-risico)."}
+    if _held_address(pf, address):
+        return {"ok": False, "online": True,
+                "melding": f"{ticker} (zelfde contract) zit al in de papieren portefeuille."}
+    pos = pf.buy(ticker, price, budget_eur=amount, liquidity_usd=liq,
+                 note="handmatig" if not require_filter else f"radar score {total}",
+                 address=address, chain=dex.get("chain") or "", url=dex.get("url") or "")
     if not pos:
         return {"ok": False, "online": True,
                 "melding": f"Koop geweigerd (al in bezit, te weinig kas, of max {config.MAX_POSITIONS} posities)."}
@@ -275,11 +353,12 @@ def perform_sell(symbol: str) -> dict:
     if sym not in pf.positions:
         return {"ok": False, "online": True,
                 "melding": f"{sym} zit niet in de papieren portefeuille."}
-    info = analyze_token(symbol, symbol, show_x=False)
-    price = _price_eur(info)
+    pos = pf.positions[sym]
+    price = _price_for_position(pos)
     if not price:
         return {"ok": False, "online": True,
-                "melding": f"Geen prijs gevonden voor {symbol}; verkoop niet uitgevoerd."}
+                "melding": f"Geen betrouwbare prijs voor {symbol} (verkeerde token?); verkoop niet uitgevoerd."}
+    info = analyze_token(pos.address or symbol, pos.symbol, show_x=False)
     pnl = pf.sell(symbol, price, reason="handmatig", liquidity_usd=_liquidity(info))
     pf.save()
     return {"ok": True, "online": True, "symbol": sym, "pnl_eur": pnl,

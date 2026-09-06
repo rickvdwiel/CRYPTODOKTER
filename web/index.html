@@ -191,7 +191,7 @@ a{color:var(--rh)}
       <div class="list" id="exam"></div>
     </section>
   </div>
-  <footer>⚠️ Geen financieel advies. Robinhood + PONS + stock-memes. Score ≥ 35 · liq ≥ $25k. Papier.</footer>
+  <footer>⚠️ Geen financieel advies. Prijs volgt het contract, niet de ticker. Score ≥ 35 · liq ≥ $25k. Papier.</footer>
 </div>
 <div class="toast" id="toast"></div>
 <div class="modal" id="modal"><div class="box"><p id="mbody"></p>
@@ -259,11 +259,15 @@ function renderInsp(d){
   const bedrag=health.position_eur||10;
   let act='';
   if(held){
+    const px=held.geprijsd===false?'geen betrouwbare prijs':pct(held.pnl_pct);
     act=`<button class="btn danger" onclick="act('sell',{symbol:'${d.symbol}'},this,'${d.symbol} verkopen?')">Verkoop</button>
-      <div class="m">${qty(held.qty)} · ${pct(held.pnl_pct)}</div>
-      ${Math.abs(held.pnl_pct)>400?'<div class="warn">P&L onbetrouwbaar — vaak de verkeerde AMC/stock-token.</div>':''}`;
+      <div class="m">${qty(held.qty)} · ${px}</div>
+      ${!held.identiteit?'<div class="warn">Geen contract opgeslagen — prijs kan de verkeerde token zijn.</div>':''}
+      ${held.geprijsd===false?'<div class="warn">Deze tick: identiteit klopt niet, geen koers.</div>':''}
+      ${held.geprijsd!==false&&Math.abs(held.pnl_pct)>400?'<div class="warn">P&L onbetrouwbaar — vaak de verkeerde AMC/stock-token.</div>':''}`;
   }else if(ok){
-    act=`<button class="btn pri" onclick="act('buy',{symbol:'${d.symbol}'},this,'${d.symbol} kopen ±€${bedrag} papier?')">Koop ±€${bedrag} papier</button>`;
+    const koop=d.address||d.symbol;
+    act=`<button class="btn pri" onclick="act('buy',{symbol:'${koop}'},this,'${d.symbol} kopen ±€${bedrag} papier?')">Koop ±€${bedrag} papier</button>`;
   }else{
     act=`<div class="m">${d.reden||'filter houdt hem tegen'}</div>`;
   }
@@ -334,7 +338,7 @@ function onderzoek(btn){
       upsert(d);
       if(d.n) document.getElementById('progbar').style.width=((d.i/d.n)*100)+'%';
       document.getElementById('radartag').textContent=d.i+'/'+d.n+' '+d.symbol;
-      if(d.actie==='zou_kopen') goedgekeurd.push(d.symbol);
+      if(d.actie==='zou_kopen') goedgekeurd.push(d.address||d.symbol);
       if(!sel) select(d.symbol);
     }else if(d.fase==='klaar'){
       klaar=true; es.close();
@@ -370,7 +374,11 @@ async function load(){
     const ret=document.getElementById('ret'); ret.className='mono '+cls(pf.rendement_pct); tween(ret, pf.rendement_pct, pct, 500);
     tween(document.getElementById('cash'), pf.cash_eur, eur, 500);
     document.getElementById('hold').innerHTML='<span class="lab">In bezit</span>'+(posities.length
-      ? posities.map(p=>`<button class="pill ${p.symbol===sel?'on':''}" onclick="select('${p.symbol}')">${p.symbol} <span class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</span></button>`).join('')
+      ? posities.map(p=>{
+          const tag=p.geprijsd===false?'?':pct(p.pnl_pct);
+          const klass=p.geprijsd===false?'':cls(p.pnl_pct);
+          return `<button class="pill ${p.symbol===sel?'on':''}" onclick="select('${p.symbol}')">${p.symbol} <span class="${klass}">${tag}</span></button>`;
+        }).join('')
       : '<span style="color:var(--dim)">leeg — onderzoek → groen → koop</span>');
     const seed=[...(rd.kandidaten||[]),...(wl.items||[])];
     seed.forEach(k=>{
@@ -378,7 +386,7 @@ async function load(){
       const ok=k.score>=health.min_score && (k.liquidity_usd||0)>=health.min_liq;
       if(!items.find(x=>x.symbol===k.symbol))
         upsert({symbol:k.symbol,score:k.score,liq:k.liquidity_usd,chain:k.chain,quote:k.quote,url:k.url,
-                change:k.change_h24,actie:ok?'zou_kopen':'overslaan',reden:k.risk||''});
+                address:k.address||'',change:k.change_h24,actie:ok?'zou_kopen':'overslaan',reden:k.risk||''});
     });
     if(!sel && items[0]) select(items[0].symbol);
     else renderAll();

@@ -188,6 +188,121 @@ class TestPerform(PaperTestCase):
         self.assertIn("Geen open posities", r["melding"])
 
 
+class TestIdentiteit(PaperTestCase):
+    def test_positie_onthoudt_adres(self):
+        pf = Portfolio()
+        pos = pf.buy("FOO", 1.0, budget_eur=10.0, liquidity_usd=1_000_000,
+                     address="So11111111111111111111111111111111111111112",
+                     chain="solana", url="https://dex.example/foo")
+        self.assertEqual(pos.address, "So11111111111111111111111111111111111111112")
+        pf.save()
+        again = Portfolio.load()
+        self.assertEqual(again.positions["FOO"].address, pos.address)
+        self.assertEqual(again.positions["FOO"].chain, "solana")
+        self.assertEqual(again.positions["FOO"].url, "https://dex.example/foo")
+
+    def test_zelfde_adres_niet_twee_keer(self):
+        pf = Portfolio()
+        pf.buy("A", 1.0, budget_eur=5.0, address="0xabc")
+        self.assertIsNone(pf.buy("B", 1.0, budget_eur=5.0, address="0xAbC"))
+
+    def test_oude_json_zonder_adres_laadt(self):
+        payload = (
+            '{"cash_eur": 80, "start_eur": 100, "realized_pnl_eur": 0,'
+            ' "fees_paid_eur": 0, "trades": 1, "positions": {"OLD": {'
+            '"symbol": "OLD", "qty": 1, "entry_price": 1, "cost_eur": 10,'
+            ' "opened_at": "2026-01-01T00:00:00+00:00", "high_price": 1,'
+            ' "note": "legacy"}}}'
+        )
+        portfolio.STATE_FILE.write_text(payload, encoding="utf-8")
+        pf = Portfolio.load()
+        self.assertIn("OLD", pf.positions)
+        self.assertEqual(pf.positions["OLD"].address, "")
+        self.assertEqual(pf.positions["OLD"].chain, "")
+
+    def test_prijs_via_adres_niet_ticker(self):
+        from bot import run_bot
+        pf = Portfolio()
+        pf.buy("AMC", 1.0, budget_eur=10.0, liquidity_usd=1_000_000,
+               address="addrAMC")
+        pf.save()
+
+        def fake(token, symbol=None, show_x=True):
+            if token == "addrAMC":
+                return {"symbol": "AMC",
+                        "dex": {"address": "addrAMC", "price_usd": "1.08"}}
+            return {"symbol": "AMC",
+                    "dex": {"address": "ANDER", "price_usd": "999"}}
+
+        orig = run_bot.analyze_token
+        run_bot.analyze_token = fake
+        try:
+            prices = run_bot.current_prices(Portfolio.load())
+        finally:
+            run_bot.analyze_token = orig
+        self.assertAlmostEqual(prices["AMC"], 1.0, places=5)
+
+    def test_mismatch_adres_geen_prijs(self):
+        from bot import run_bot
+        pf = Portfolio()
+        pf.buy("AMC", 1.0, budget_eur=10.0, address="addrAMC")
+        pf.save()
+
+        def fake(token, symbol=None, show_x=True):
+            return {"symbol": "AMC",
+                    "dex": {"address": "IEMANDANDERS", "price_usd": "50"}}
+
+        orig = run_bot.analyze_token
+        run_bot.analyze_token = fake
+        try:
+            prices = run_bot.current_prices(Portfolio.load())
+        finally:
+            run_bot.analyze_token = orig
+        self.assertNotIn("AMC", prices)
+
+    def test_sprong_zonder_adres_wordt_genegeerd(self):
+        from bot import run_bot
+        pf = Portfolio()
+        pf.buy("X", 1.0, budget_eur=10.0, liquidity_usd=1_000_000)
+        pf.save()
+
+        def fake(token, symbol=None, show_x=True):
+            return {"symbol": "X", "dex": {"symbol": "X", "price_usd": "1080"}}
+
+        orig = run_bot.analyze_token
+        run_bot.analyze_token = fake
+        try:
+            prices = run_bot.current_prices(Portfolio.load())
+        finally:
+            run_bot.analyze_token = orig
+        self.assertEqual(prices, {})
+
+    def test_sprong_met_adres_wordt_vertrouwd(self):
+        from bot import run_bot
+        pf = Portfolio()
+        pf.buy("X", 1.0, budget_eur=10.0, liquidity_usd=1_000_000,
+               address="0xreal")
+        pf.save()
+
+        def fake(token, symbol=None, show_x=True):
+            return {"symbol": "X",
+                    "dex": {"address": "0xreal", "symbol": "X", "price_usd": "1080"}}
+
+        orig = run_bot.analyze_token
+        run_bot.analyze_token = fake
+        try:
+            prices = run_bot.current_prices(Portfolio.load())
+        finally:
+            run_bot.analyze_token = orig
+        self.assertAlmostEqual(prices["X"], 1000.0, places=4)
+
+    def test_junk_symbool(self):
+        from radar.sources import dexscreener
+        self.assertTrue(dexscreener.junk_symbol("0X1A2B3C4D5E6F"))
+        self.assertFalse(dexscreener.junk_symbol("PONS"))
+        self.assertFalse(dexscreener.junk_symbol("AMC"))
+
+
 class TestPrijsHelpers(unittest.TestCase):
     def test_price_eur_uit_exchange(self):
         from bot import run_bot

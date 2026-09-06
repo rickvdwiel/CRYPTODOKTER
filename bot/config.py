@@ -30,6 +30,9 @@ MAX_HOLD_DAYS = 14               # dood in het water? eruit
 MIN_SCORE = 35.0                 # onder deze radarscore niet kopen
 MIN_LIQUIDITY_USD = 25_000.0     # onder deze liquiditeit nooit kopen (rug-risico)
 EUR_USD = 1.08                   # ruwe omrekening; prijzen komen in USD binnen
+# Zonder opgeslagen contract telt een sprong van ≥ 2.5× in één tick als
+# mismatch (niet als take-profit). Met contractadres geldt dit niet.
+MAX_UNVERIFIED_TICK_MULT = 2.5
 
 # Scheduler (trackrecord): launchd vuurt elk uur één cyclus
 TICK_EVERY_HOURS = 1.0           # prijzen + exit-regels

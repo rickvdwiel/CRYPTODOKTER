@@ -88,15 +88,19 @@ class TestCycle(SchedulerCase):
         self.assertEqual(self.ticks, [])
         self.assertEqual(self.scans, [])
 
-    def test_na_een_uur_alleen_tick(self):
+    def test_na_tick_interval_tickt_weer(self):
         t0 = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
         self._cycle(now=t0)
         self.ticks.clear()
         self.scans.clear()
         did = self._cycle(now=t0 + timedelta(hours=config.TICK_EVERY_HOURS, minutes=1))
         self.assertTrue(did["tick"])
-        self.assertFalse(did["scan"])
-        self.assertEqual(self.scans, [])
+        # Scan-interval is nu ook 1u; alleen langer dan tick betekent "geen scan".
+        if config.SCAN_EVERY_HOURS > config.TICK_EVERY_HOURS:
+            self.assertFalse(did["scan"])
+            self.assertEqual(self.scans, [])
+        else:
+            self.assertTrue(did["scan"])
 
     def test_na_een_dag_ook_scan(self):
         t0 = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)

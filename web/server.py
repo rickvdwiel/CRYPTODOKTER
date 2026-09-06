@@ -66,6 +66,7 @@ def _slim(info: dict) -> dict:
         "chain": dex.get("chain", ""),
         "quote": dex.get("quote", ""),
         "url": dex.get("url", ""),
+        "address": dex.get("address", ""),
         "exchange": (exch[0]["pair"] if exch else ""),
         "x_count": getattr(info.get("x"), "count", 0),
         "news": (info.get("news") or {}).get("total", 0),
@@ -76,14 +77,7 @@ def api_portfolio() -> dict:
     pf = Portfolio.load()
     prices = {}
     if pf.positions and _online():
-        for sym in list(pf.positions):
-            info = _cached(f"price:{sym}", lambda s=sym: analyze_token(s, s, show_x=False))
-            dex = info.get("dex") or {}
-            if dex.get("price_usd"):
-                try:
-                    prices[sym] = float(dex["price_usd"]) / 1.08
-                except (TypeError, ValueError):
-                    pass
+        prices = run_bot.current_prices(pf)
     s = pf.summary(prices)
     s["posities"] = [{
         "symbol": sym,
@@ -92,6 +86,11 @@ def api_portfolio() -> dict:
         "pnl_pct": p.pnl_pct(prices.get(sym, p.entry_price)),
         "note": p.note,
         "opened_at": p.opened_at,
+        "address": getattr(p, "address", "") or "",
+        "chain": getattr(p, "chain", "") or "",
+        "url": getattr(p, "url", "") or "",
+        "identiteit": bool(getattr(p, "address", "")),
+        "geprijsd": sym in prices,
     } for sym, p in pf.positions.items()]
     return s
 

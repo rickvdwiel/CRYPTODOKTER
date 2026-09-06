@@ -9,7 +9,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from bot import portfolio, scheduler
+from bot import portfolio, run_bot, scheduler
 from bot.portfolio import Portfolio
 from web import server
 
@@ -45,8 +45,12 @@ class WebTestCase(unittest.TestCase):
         self._online, self._analyze, self._trending, self._wl = (
             server._online, server.analyze_token,
             server.dexscreener.trending_tokens, server.WATCHLIST)
+        self._rb_online = run_bot._online
+        self._rb_analyze = run_bot.analyze_token
         server._online = lambda: True
+        run_bot._online = lambda: True
         server.analyze_token = lambda *a, **k: FAKE_INFO
+        run_bot.analyze_token = lambda *a, **k: FAKE_INFO
         server.dexscreener.trending_tokens = lambda limit=10: [
             {"tokenAddress": "0xabc"}, {"tokenAddress": "0xdef"}]
         server.WATCHLIST = d / "watchlist.txt"
@@ -60,6 +64,8 @@ class WebTestCase(unittest.TestCase):
         (server._online, server.analyze_token,
          server.dexscreener.trending_tokens, server.WATCHLIST) = (
             self._online, self._analyze, self._trending, self._wl)
+        run_bot._online = self._rb_online
+        run_bot.analyze_token = self._rb_analyze
         server._cache.clear()
         self.tmp.cleanup()
 

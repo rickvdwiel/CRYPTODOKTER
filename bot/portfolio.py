@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -43,6 +43,9 @@ class Position:
     opened_at: str
     high_price: float          # hoogste geziene prijs (voor trailing stop)
     note: str = ""
+    address: str = ""          # DexScreener baseToken.address — identiteit
+    chain: str = ""
+    url: str = ""              # pair-url, om te controleren wat je vasthoudt
 
     def value_eur(self, price: float) -> float:
         return self.qty * price
@@ -79,8 +82,15 @@ class Portfolio:
             fees_paid_eur=float(raw.get("fees_paid_eur", 0.0)),
             trades=int(raw.get("trades", 0)),
         )
+        known = {f.name for f in fields(Position)}
         for sym, p in (raw.get("positions") or {}).items():
-            pf.positions[sym] = Position(**p)
+            if not isinstance(p, dict):
+                continue
+            clean = {k: v for k, v in p.items() if k in known}
+            try:
+                pf.positions[sym] = Position(**clean)
+            except TypeError:
+                continue
         return pf
 
     def save(self, path: Optional[Path] = None) -> Path:
@@ -107,13 +117,20 @@ class Portfolio:
 
     # ---------- handelen ----------
     def buy(self, symbol: str, price_eur: float, budget_eur: Optional[float] = None,
-            liquidity_usd: Optional[float] = None, note: str = "") -> Optional[Position]:
+            liquidity_usd: Optional[float] = None, note: str = "",
+            address: str = "", chain: str = "", url: str = "") -> Optional[Position]:
         """Virtuele koop. Geeft None als de regels het niet toestaan."""
         symbol = symbol.upper()
+        address = (address or "").strip()
+        chain = (chain or "").strip()
+        url = (url or "").strip()
         if price_eur <= 0:
             return None
         if symbol in self.positions:
             return None                       # niet bijkopen: houd het eerlijk
+        if address and any((p.address or "").lower() == address.lower()
+                           for p in self.positions.values()):
+            return None                       # zelfde contract, andere ticker
         if len(self.positions) >= config.MAX_POSITIONS:
             return None
         budget = budget_eur if budget_eur is not None else (
@@ -133,7 +150,8 @@ class Portfolio:
         self.fees_paid_eur += fee
         self.trades += 1
         pos = Position(symbol=symbol, qty=qty, entry_price=fill, cost_eur=budget,
-                       opened_at=_now(), high_price=fill, note=note)
+                       opened_at=_now(), high_price=fill, note=note,
+                       address=address, chain=chain, url=url)
         self.positions[symbol] = pos
         self._log("BUY", symbol, qty, fill, budget, fee, 0.0, note)
         return pos
