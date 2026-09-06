@@ -5,10 +5,8 @@ Draait op de Python-standaardbibliotheek (geen Flask/Django nodig):
     python -m web.server            # → http://127.0.0.1:8000
     python -m web.server --port 8080 --host 0.0.0.0
 
-Toont: papieren portefeuille, radar-kandidaten (met risico-labels) en de
-watchlist. Je kunt vanaf hier scannen, kopen en verkopen — allemaal papier.
-Scans worden gecachet zodat de gratis bronnen niet worden gehamerd.
-
+Toont de autonome papieren bot: je kijkt mee, je hoeft niet te klikken.
+Tick + scan lopen op de klok (launchd én een lus in deze server).
 Dit dashboard plaatst nooit een echte order.
 """
 from __future__ import annotations
@@ -23,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
-from bot import config as bot_config
+from bot import activity, config as bot_config
 from bot import run_bot, scheduler
 from bot.portfolio import TRADES_FILE, Portfolio
 from radar import config as radar_config
@@ -78,7 +76,8 @@ def api_portfolio() -> dict:
     pf = Portfolio.load()
     prices = {}
     if pf.positions and _online():
-        prices = run_bot.current_prices(pf)
+        key = "prices:" + ",".join(sorted(pf.positions))
+        prices = _cached(key, lambda: run_bot.current_prices(pf), ttl=15.0)
     s = pf.summary(prices)
     s["posities"] = [{
         "symbol": sym,
@@ -197,7 +196,14 @@ def api_scheduler() -> dict:
         "tick_every": bot_config.TICK_EVERY_HOURS,
         "scan_every": bot_config.SCAN_EVERY_HOURS,
         "minuut": bot_config.LAUNCHD_MINUTE,
+        "autonoom": True,
     }
+
+
+def api_activity() -> dict:
+    d = activity.load()
+    d["scheduler"] = api_scheduler()
+    return d
 
 
 def api_health() -> dict:
@@ -205,6 +211,7 @@ def api_health() -> dict:
         "ok": True,
         "online": _online(),
         "papier": True,
+        "autonoom": True,
         "min_score": bot_config.MIN_SCORE,
         "min_liq": bot_config.MIN_LIQUIDITY_USD,
         "max_positions": bot_config.MAX_POSITIONS,
@@ -320,6 +327,7 @@ class Handler(BaseHTTPRequestHandler):
                         "watchlist": api_watchlist(),
                         "scheduler": api_scheduler(),
                         "trades": api_trades(),
+                        "activity": api_activity(),
                     }
                     html = html.replace(
                         "</head>",
@@ -345,6 +353,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(api_scheduler())
             elif path == "/api/health":
                 self._json(api_health())
+            elif path == "/api/activity":
+                self._json(api_activity())
             elif path == "/api/scan-stream":
                 self._scan_stream()
             elif path == "/api/sleep":
@@ -375,15 +385,33 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": str(e), "melding": str(e)}, 500)
 
 
+def _autonome_lus(stop: threading.Event) -> None:
+    """Due-check elke 45s. launchd doet hetzelfde; file-lock voorkomt dubbel."""
+    eerste = True
+    while True:
+        if stop.wait(8.0 if eerste else 45.0):
+            return
+        eerste = False
+        try:
+            scheduler.run_cycle()
+        except Exception:  # noqa: BLE001 — lus mag de server niet kellen
+            sys.stderr.write("autonome cyclus faalde\n")
+
+
 def serve(host: str = "127.0.0.1", port: int = 8000) -> int:
     httpd = ThreadingHTTPServer((host, port), Handler)
+    stop = threading.Event()
+    lus = threading.Thread(target=_autonome_lus, args=(stop,), daemon=True,
+                           name="cryptodokter-autonoom")
+    lus.start()
     print(f">> CryptoDokter dashboard: http://{host}:{port}")
-    print("   (papier: scannen/kopen/verkopen mag; echte orders nooit. Ctrl-C stopt)")
+    print("   autonoom papier: tick+scan op de klok, jij kijkt mee. Ctrl-C stopt")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nGestopt.")
     finally:
+        stop.set()
         httpd.server_close()
     return 0
 

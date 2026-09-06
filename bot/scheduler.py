@@ -30,6 +30,11 @@ from xml.sax.saxutils import escape
 from bot import config
 from bot.portfolio import DATA_DIR
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover — Windows
+    fcntl = None  # type: ignore[assignment]
+
 ROOT = Path(__file__).resolve().parent.parent
 STATE_FILE = DATA_DIR / "scheduler_state.json"
 LOG_FILE = DATA_DIR / "bot.log"
@@ -149,9 +154,47 @@ def run_cycle(force_tick: bool = False, force_scan: bool = False,
 
     `only='tick'|'scan'` slaat de andere actie over (voor --once).
     """
+    now = now or _now()
+    state_path = state_path or STATE_FILE
+    lock_fh = _cycle_lock(state_path)
+    if lock_fh is None:
+        return {"tick": False, "scan": False, "tick_rc": None, "scan_rc": None,
+                "busy": True}
+    try:
+        return _run_cycle_locked(
+            force_tick=force_tick, force_scan=force_scan, only=only, now=now,
+            tick_fn=tick_fn, scan_fn=scan_fn, state_path=state_path)
+    finally:
+        _cycle_unlock(lock_fh)
+
+
+def _cycle_lock(state_path: Path):
+    """Niet-blokkerend slot zodat launchd + dashboard niet dubbel scannen."""
+    if fcntl is None:
+        return True
+    path = Path(state_path).with_name("scheduler.lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, "a+", encoding="utf-8")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fh
+    except OSError:
+        fh.close()
+        return None
+
+
+def _cycle_unlock(lock_fh) -> None:
+    if lock_fh is True or lock_fh is None:
+        return
+    try:
+        fcntl.flock(lock_fh, fcntl.LOCK_UN)
+    finally:
+        lock_fh.close()
+
+
+def _run_cycle_locked(force_tick, force_scan, only, now, tick_fn, scan_fn, state_path):
     from bot import run_bot
 
-    now = now or _now()
     state = load_state(state_path)
     did = {"tick": False, "scan": False, "tick_rc": None, "scan_rc": None}
     want_tick = only in (None, "tick")

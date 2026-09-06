@@ -6,7 +6,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from bot import config, portfolio
+from bot import activity, config, portfolio
 from bot.portfolio import Portfolio
 
 
@@ -15,11 +15,14 @@ class PaperTestCase(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
         self._state, self._trades = portfolio.STATE_FILE, portfolio.TRADES_FILE
+        self._act = activity.ACTIVITY_FILE
         portfolio.STATE_FILE = d / "pf.json"
         portfolio.TRADES_FILE = d / "trades.csv"
+        activity.ACTIVITY_FILE = d / "activity.json"
 
     def tearDown(self):
         portfolio.STATE_FILE, portfolio.TRADES_FILE = self._state, self._trades
+        activity.ACTIVITY_FILE = self._act
         self.tmp.cleanup()
 
 
@@ -302,6 +305,29 @@ class TestIdentiteit(PaperTestCase):
         self.assertTrue(dexscreener.junk_symbol("0X1A2B3C4D5E6F"))
         self.assertFalse(dexscreener.junk_symbol("PONS"))
         self.assertFalse(dexscreener.junk_symbol("AMC"))
+
+
+class TestActivity(PaperTestCase):
+    def test_dry_run_schrijft_niet(self):
+        activity.record_scan({"fase": "start", "totaal": 3, "dry_run": True})
+        self.assertFalse(activity.ACTIVITY_FILE.exists())
+
+    def test_echte_scan_wordt_bewaard(self):
+        activity.record_scan({"fase": "start", "totaal": 2, "dry_run": False, "melding": "start"})
+        activity.record_scan({
+            "fase": "check", "i": 1, "n": 2, "symbol": "PONS",
+            "actie": "gekocht", "reden": "ok", "dry_run": False,
+        })
+        d = activity.load()
+        self.assertEqual(d["scan"]["n"], 2)
+        self.assertEqual(d["scan"]["events"][0]["symbol"], "PONS")
+        self.assertTrue(d["autonoom"])
+
+    def test_tick_wordt_bewaard(self):
+        activity.record_tick({"exits": [{"symbol": "X", "reden": "stop-loss", "pnl_eur": -1}],
+                              "melding": "stop"})
+        d = activity.load()
+        self.assertEqual(d["tick"]["exits"][0]["symbol"], "X")
 
 
 class TestPrijsHelpers(unittest.TestCase):

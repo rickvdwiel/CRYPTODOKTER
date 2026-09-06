@@ -159,7 +159,7 @@ a{color:var(--rh)}
   <header>
     <div class="brand">
       <div class="logo"></div>
-      <h1>CryptoDokter <span class="badge">PAPIER</span></h1>
+      <h1>CryptoDokter <span class="badge">PAPIER</span> <span class="badge">AUTONOOM</span></h1>
     </div>
     <div class="chains" id="chains">
       <button class="ch on" data-c="all" onclick="setChain('all',this)">Alle</button>
@@ -168,12 +168,9 @@ a{color:var(--rh)}
       <button class="ch" data-c="bsc" onclick="setChain('bsc',this)">BSC</button>
     </div>
     <div class="actions" id="toolbar">
-      <button class="btn pri" onclick="onderzoek(this)"><span class="spinny">◉</span> Onderzoek de markt</button>
-      <button class="btn" id="koopgroen" hidden onclick="koopGoedgekeurde(this)">Koop groene</button>
-      <button class="btn" onclick="act('tick',{},this)">Tick</button>
-      <button class="btn danger" onclick="act('reset',{},this,'Portefeuille terug naar €'+(health.start_eur||100)+'?')">Reset</button>
-      <span class="live" id="live"><em></em> LIVE</span>
+      <span class="live" id="live"><em></em> AUTONOOM</span>
       <span class="clock" id="clock"></span>
+      <button class="btn danger tiny" onclick="act('reset',{},this,'Portefeuille terug naar €'+(health.start_eur||100)+'? Alleen als je de ronde wilt wissen.')">Reset</button>
     </div>
   </header>
   <div class="strip">
@@ -189,18 +186,18 @@ a{color:var(--rh)}
   </div>
   <div class="main">
     <section class="col">
-      <h2>Trenches <span id="radartag">klik een stip</span></h2>
+      <h2>Trenches <span id="radartag">wacht op scan</span></h2>
       <div class="radar-wrap">
         <div class="sonar" id="sonar"><div class="sweep"></div><div id="blips"></div></div>
       </div>
     </section>
     <section class="col">
       <h2>Geselecteerd</h2>
-      <div class="insp" id="insp"><div class="empty">Klik stip of rij. Stock-pairs (AMC/NVDA) zie je hier.</div></div>
+      <div class="insp" id="insp"><div class="empty">De bot scant zelf. Klik een stip om te zien waarom wel/niet.</div></div>
     </section>
     <section class="col">
       <h2>
-        Lijst
+        Laatste ronde
         <span class="filters">
           <button class="ch on" data-f="all" onclick="setFilter('all',this)">Alle</button>
           <button class="ch" data-f="ok" onclick="setFilter('ok',this)">Groen</button>
@@ -211,7 +208,7 @@ a{color:var(--rh)}
       <div class="list" id="exam"></div>
     </section>
   </div>
-  <footer>⚠️ Geen financieel advies. Scan koopt op papier (score ≥ 35 · liq ≥ $25k). Tick verkoopt bij SL −25% / TP +60% / trailing. Prijs op contract.</footer>
+  <footer>⚠️ Geen financieel advies. Autonoom papier: de bot koopt en verkoopt zelf. Jij kijkt mee. Score ≥ 35 · liq ≥ $25k.</footer>
 </div>
 <div class="toast" id="toast"></div>
 <div class="modal" id="modal"><div class="box"><p id="mbody"></p>
@@ -304,7 +301,7 @@ function renderFills(){
   const tag=document.getElementById('filltag');
   if(tag) tag.textContent=n? (n+' deze ronde · papier') : 'papier · koop en verkoop';
   if(!fills.length){
-    box.innerHTML='<div class="empty" style="padding:8px 0;text-align:left">Nog geen fills. De bot koopt elk uur :07 als de radar groen is. Tick verkoopt bij stop-loss, take-profit of trailing. Zelf: Onderzoek → Koop groene.</div>';
+    box.innerHTML='<div class="empty" style="padding:8px 0;text-align:left">Nog geen fills deze ronde. De bot koopt en verkoopt zelf (elk uur). Jij hoeft niets te doen.</div>';
     return;
   }
   box.innerHTML=fills.map(t=>{
@@ -331,7 +328,7 @@ function renderClock(sch){
 }
 function renderInsp(d){
   const box=document.getElementById('insp');
-  if(!d||!d.symbol){box.innerHTML='<div class="empty">Klik een stip. Stock-pairs (AMC/NVDA) zie je hier.</div>';return;}
+  if(!d||!d.symbol){box.innerHTML='<div class="empty">De bot scant zelf. Klik een stip om te zien waarom wel/niet.</div>';return;}
   const held=posities.find(p=>p.symbol===d.symbol);
   const ok=isOk(d)&&!held;
   const score=d.score||0, liq=d.liq||d.liquidity_usd||0;
@@ -346,8 +343,7 @@ function renderInsp(d){
       ${held.geprijsd===false?'<div class="warn">Deze tick: identiteit klopt niet, geen koers.</div>':''}
       ${held.geprijsd!==false&&Math.abs(held.pnl_pct)>400?'<div class="warn">P&L onbetrouwbaar — vaak de verkeerde AMC/stock-token.</div>':''}`;
   }else if(ok){
-    const koop=d.address||d.symbol;
-    act=`<button class="btn pri" onclick="act('buy',{symbol:'${koop}'},this,'${d.symbol} kopen ±€${bedrag} papier?')">Koop ±€${bedrag} papier</button>`;
+    act=`<div class="m">Filter groen — de bot koopt dit zelf als er een slot vrij is (±€${bedrag}).</div>`;
   }else{
     act=`<div class="m">${d.reden||'filter houdt hem tegen'}</div>`;
   }
@@ -396,7 +392,8 @@ function renderAll(){
   const g=items.filter(isOk).length;
   const rh=items.filter(d=>chainOf(d).includes('robinhood')).length;
   document.getElementById('marktstat').innerHTML=`<span class="up">${g}</span>/${items.length||0} <span style="font-size:12px;color:var(--rh);font-weight:600">RH ${rh}</span>`;
-  document.getElementById('radartag').textContent=chain==='all'?(g+' groen'):chain;
+  if(!document.getElementById('sonar').classList.contains('hot'))
+    document.getElementById('radartag').textContent=chain==='all'?(g+' groen'):chain;
   renderTape(); renderFills(); renderList(); paintSonar(); if(sel) select(sel);
 }
 function upsert(d){
@@ -448,12 +445,12 @@ function koopGoedgekeurde(btn){
 async function load(){
   try{
     const jget=async p=>{const k=p.split('/').pop(); if(window.__BOOT&&window.__BOOT[k]) return window.__BOOT[k]; return (await fetch(p)).json();};
-    const [h,pf,wl,rd,tr,sch]=await Promise.all([
-      jget('/api/health'),jget('/api/portfolio'),jget('/api/watchlist'),
-      jget('/api/radar'),jget('/api/trades'),jget('/api/scheduler')]);
+    const [h,pf,tr,sch,act]=await Promise.all([
+      jget('/api/health'),jget('/api/portfolio'),jget('/api/trades'),
+      jget('/api/scheduler'),jget('/api/activity')]);
     health=h; posities=pf.posities||[];
     fills=tr.items||[];
-    document.getElementById('live').innerHTML=h.online?'<em></em> LIVE':'<em style="background:var(--no)"></em> OFF';
+    document.getElementById('live').innerHTML=h.online?'<em></em> AUTONOOM':'<em style="background:var(--no)"></em> OFF';
     renderClock(sch);
     const newest=fills[0]&&fills[0].tijd;
     if(lastFillTijd && newest && newest>lastFillTijd){
@@ -464,28 +461,30 @@ async function load(){
     tween(document.getElementById('eq'), pf.equity_eur, eur, 500);
     const ret=document.getElementById('ret'); ret.className='mono '+cls(pf.rendement_pct); tween(ret, pf.rendement_pct, pct, 500);
     tween(document.getElementById('cash'), pf.cash_eur, eur, 500);
+    const scan=act.scan||{};
+    const evs=scan.events||[];
+    if(evs.length){
+      items=evs.map(d=>({symbol:d.symbol,actie:d.actie,score:d.score,liq:d.liq,reden:d.reden,
+        chain:d.chain,quote:d.quote,url:d.url,address:d.address||'',news:d.news||0,watchers:d.watchers||0}));
+    }
+    const bezig=scan.fase==='start'||scan.fase==='check';
+    document.getElementById('sonar').classList.toggle('hot', !!bezig);
+    if(scan.n) document.getElementById('progbar').style.width=((scan.i||0)/scan.n*100)+'%';
+    if(bezig) document.getElementById('radartag').textContent=(scan.i||0)+'/'+scan.n+' bezig';
+    else if(scan.melding) document.getElementById('radartag').textContent=scan.gekocht?('gekocht '+scan.gekocht):'laatste ronde';
     document.getElementById('hold').innerHTML='<span class="lab">In bezit</span>'+(posities.length
       ? posities.map(p=>{
           const tag=p.geprijsd===false?'?':pct(p.pnl_pct);
           const klass=p.geprijsd===false?'':cls(p.pnl_pct);
           return `<button class="pill ${p.symbol===sel?'on':''}" onclick="select('${p.symbol}')">${p.symbol} <span class="${klass}">${tag}</span></button>`;
         }).join('')
-      : '<span style="color:var(--dim)">leeg — onderzoek → groen → koop</span>');
-    const seed=[...(rd.kandidaten||[]),...(wl.items||[])];
-    seed.forEach(k=>{
-      if(!k||!k.symbol) return;
-      const ok=k.score>=health.min_score && (k.liquidity_usd||0)>=health.min_liq;
-      if(!items.find(x=>x.symbol===k.symbol))
-        upsert({symbol:k.symbol,score:k.score,liq:k.liquidity_usd,chain:k.chain,quote:k.quote,url:k.url,
-                address:k.address||'',change:k.change_h24,news:k.news||0,watchers:k.watchers||0,
-                actie:ok?'zou_kopen':'overslaan',reden:k.risk||''});
-    });
+      : '<span style="color:var(--dim)">leeg — de bot koopt zelf als de radar groen is</span>');
     if(!sel && items[0]) select(items[0].symbol);
     else renderAll();
   }catch(e){toast('Fout: '+e,false);}
 }
-load(); setInterval(load, 30000);
-document.addEventListener('keydown',e=>{ if(e.key==='Enter') onderzoek(document.querySelector('.btn.pri')); if(e.key==='Escape'){sel=null;renderInsp(null);} });
+load(); setInterval(load, 4000);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){sel=null;renderInsp(null);} });
 </script>
 </body>
 </html>

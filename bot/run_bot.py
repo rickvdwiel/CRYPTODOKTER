@@ -15,7 +15,7 @@ import argparse
 import sys
 from typing import Optional
 
-from bot import config
+from bot import activity, config
 from bot.portfolio import STATE_FILE, Portfolio, print_summary
 from radar import config as radar_config
 from radar.run_radar import DISCLAIMER, _online, analyze_token
@@ -145,9 +145,11 @@ def perform_tick() -> dict:
         return _offline_result()
     pf = Portfolio.load()
     if not pf.positions:
-        return {"ok": True, "online": True, "exits": [],
-                "melding": "Geen open posities. Draai een scan om kandidaten te zoeken.",
-                "summary": pf.summary()}
+        out = {"ok": True, "online": True, "exits": [],
+               "melding": "Geen open posities. De volgende scan koopt zelf.",
+               "summary": pf.summary()}
+        activity.record_tick(out)
+        return out
     prices = current_prices(pf)
     raw = pf.check_exits(prices)
     pf.save()
@@ -156,8 +158,10 @@ def perform_tick() -> dict:
         melding = "; ".join(f"{e['symbol']} {e['reden']} → €{e['pnl_eur']:+.2f}" for e in exits)
     else:
         melding = "Geen exit-signalen; posities blijven staan."
-    return {"ok": True, "online": True, "exits": exits, "melding": melding,
-            "summary": pf.summary(prices)}
+    out = {"ok": True, "online": True, "exits": exits, "melding": melding,
+           "summary": pf.summary(prices)}
+    activity.record_tick(out)
+    return out
 
 
 def _oordeel(score, liq, price, in_pf, n_pos) -> tuple:
@@ -178,25 +182,31 @@ def _oordeel(score, liq, price, in_pf, n_pos) -> tuple:
 def scan_steps(dry_run: bool = True):
     """Token-voor-token onderzoek. Yield dicts met fase start/check/klaar."""
     if not _online():
-        yield dict(_offline_result(), fase="klaar", events=[], gekocht=0, dry_run=dry_run)
+        ev = dict(_offline_result(), fase="klaar", events=[], gekocht=0, dry_run=dry_run)
+        activity.record_scan(ev)
+        yield ev
         return
     pf = Portfolio.load()
     profiles = dexscreener.trending_tokens(limit=radar_config.DEX_TOP_N)
     addrs = [p.get("tokenAddress", "") for p in profiles if p.get("tokenAddress")]
     subset = addrs[:radar_config.MAX_SCAN_TOKENS]
     n = len(subset)
-    yield {
+    start = {
         "fase": "start", "ok": True, "online": True, "dry_run": dry_run,
         "totaal": n,
-        "melding": (f"{n} trending tokens gevonden. Ik loop ze één voor één na. "
+        "melding": (f"{n} trending tokens gevonden. Autonome ronde, papier. "
                     f"Koopregel: score ≥ {config.MIN_SCORE} én liquiditeit ≥ "
-                    f"${config.MIN_LIQUIDITY_USD:,.0f}. Alles papier."),
+                    f"${config.MIN_LIQUIDITY_USD:,.0f}."),
     }
+    activity.record_scan(start)
+    yield start
     if not subset:
-        yield {"fase": "klaar", "ok": True, "online": True, "dry_run": dry_run,
-               "gekocht": 0, "events": [],
-               "melding": "Geen kandidaten van de radar (bron down?). Probeer later.",
-               "summary": pf.summary()}
+        klaar = {"fase": "klaar", "ok": True, "online": True, "dry_run": dry_run,
+                 "gekocht": 0, "events": [],
+                 "melding": "Geen kandidaten van de radar (bron down?). Volgende ronde later.",
+                 "summary": pf.summary()}
+        activity.record_scan(klaar)
+        yield klaar
         return
 
     events = []
@@ -243,6 +253,7 @@ def scan_steps(dry_run: bool = True):
                 ev["actie"] = "geweigerd"
                 ev["reden"] = "kas op of limiet bereikt"
         events.append(ev)
+        activity.record_scan(ev)
         yield ev
         if ev["actie"] == "stop":
             break
@@ -255,12 +266,14 @@ def scan_steps(dry_run: bool = True):
                    f"De rest valt af op score of liquiditeit.")
     else:
         melding = f"Klaar. {gekocht} nieuwe papieren positie(s)."
-    yield {
+    klaar = {
         "fase": "klaar", "ok": True, "online": True, "dry_run": dry_run,
         "gekocht": gekocht, "events": events, "melding": melding,
         "summary": pf.summary(),
         "goedgekeurd": [e["symbol"] for e in events if e["actie"] in ("zou_kopen", "gekocht")],
     }
+    activity.record_scan(klaar)
+    yield klaar
 
 
 def perform_scan(dry_run: bool = False) -> dict:

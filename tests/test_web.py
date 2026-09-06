@@ -9,7 +9,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from bot import portfolio, run_bot, scheduler
+from bot import activity, portfolio, run_bot, scheduler
 from bot.portfolio import Portfolio
 from web import server
 
@@ -41,7 +41,9 @@ class WebTestCase(unittest.TestCase):
         portfolio.TRADES_FILE = d / "trades.csv"
         scheduler.STATE_FILE = d / "sched.json"
         self._server_trades = server.TRADES_FILE
+        self._act = activity.ACTIVITY_FILE
         server.TRADES_FILE = d / "trades.csv"
+        activity.ACTIVITY_FILE = d / "activity.json"
         self._online, self._analyze, self._trending, self._wl = (
             server._online, server.analyze_token,
             server.dexscreener.trending_tokens, server.WATCHLIST)
@@ -66,6 +68,7 @@ class WebTestCase(unittest.TestCase):
             self._online, self._analyze, self._trending, self._wl)
         run_bot._online = self._rb_online
         run_bot.analyze_token = self._rb_analyze
+        activity.ACTIVITY_FILE = self._act
         server._cache.clear()
         self.tmp.cleanup()
 
@@ -109,7 +112,13 @@ class TestApi(WebTestCase):
         d = server.api_health()
         self.assertTrue(d["ok"])
         self.assertTrue(d["papier"])
+        self.assertTrue(d["autonoom"])
         self.assertGreater(d["min_score"], 0)
+
+    def test_activity_leeg(self):
+        d = server.api_activity()
+        self.assertTrue(d["autonoom"])
+        self.assertEqual(d["scan"]["events"], [])
 
     def test_scheduler_leeg(self):
         d = server.api_scheduler()
@@ -192,9 +201,9 @@ class TestHttp(WebTestCase):
         self.assertEqual(status, 200)
         self.assertIn("CryptoDokter", body)
         self.assertIn("Geen financieel advies", body)
-        self.assertIn("Onderzoek de markt", body)
+        self.assertIn("AUTONOOM", body)
         self.assertIn("PAPIER", body)
-        self.assertIn("onderzoek(", body)
+        self.assertNotIn("Onderzoek de markt", body)
         self.assertIn("id=\"sonar\"", body)
         self.assertIn("id=\"exam\"", body)
         self.assertIn("id=\"fills\"", body)
@@ -209,7 +218,7 @@ class TestHttp(WebTestCase):
 
     def test_json_endpoints(self):
         for path in ("/api/portfolio", "/api/radar", "/api/watchlist",
-                     "/api/trades", "/api/scheduler"):
+                     "/api/trades", "/api/scheduler", "/api/activity"):
             status, body = self._get(path)
             self.assertEqual(status, 200, path)
             self.assertIsInstance(json.loads(body), dict)
