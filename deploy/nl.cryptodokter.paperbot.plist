@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  CryptoDokter paper-bot scheduler (macOS launchd)
+
+  1) Pas WorkingDirectory en ProgramArguments aan naar jouw clone + .venv
+  2) mkdir -p ~/Library/Logs/CryptoDokter
+  3) cp deploy/nl.cryptodokter.paperbot.plist ~/Library/LaunchAgents/
+  4) launchctl load ~/Library/LaunchAgents/nl.cryptodokter.paperbot.plist
+
+  KeepAlive zorgt dat de foreground-scheduler opnieuw start na reboot/crash.
+  Alles blijft PAPIER: geen exchange-keys, geen echte orders.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>nl.cryptodokter.paperbot</string>
+  <key>WorkingDirectory</key>
+  <string>/PAD/NAAR/CRYPTODOKTER</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/PAD/NAAR/CRYPTODOKTER/.venv/bin/python</string>
+    <string>-m</string>
+    <string>bot.scheduler</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/JOUWUSER/Library/Logs/CryptoDokter/scheduler.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/JOUWUSER/Library/Logs/CryptoDokter/scheduler.err.log</string>
+</dict>
+</plist>
