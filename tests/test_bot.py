@@ -121,6 +121,7 @@ class TestPersistentie(PaperTestCase):
         self.assertIn("SAVE", again.positions)
         self.assertAlmostEqual(again.cash_eur, pf.cash_eur)
         self.assertAlmostEqual(again.positions["SAVE"].qty, pf.positions["SAVE"].qty)
+        self.assertTrue(again.session_started)
 
     def test_laden_zonder_bestand(self):
         pf = Portfolio.load(portfolio.STATE_FILE)

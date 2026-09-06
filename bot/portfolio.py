@@ -34,6 +34,15 @@ def _parse(ts: str) -> datetime:
         return datetime.now(timezone.utc)
 
 
+def _session_started_from(raw: dict) -> str:
+    started = str(raw.get("session_started") or "")
+    if started:
+        return started
+    opened = [p.get("opened_at") for p in (raw.get("positions") or {}).values()
+              if isinstance(p, dict) and p.get("opened_at")]
+    return min(opened) if opened else str(raw.get("updated") or _now())
+
+
 @dataclass
 class Position:
     symbol: str
@@ -64,6 +73,11 @@ class Portfolio:
     realized_pnl_eur: float = 0.0
     fees_paid_eur: float = 0.0
     trades: int = 0
+    session_started: str = ""   # reset-moment; fills daarvoor zijn een vorige ronde
+
+    def __post_init__(self) -> None:
+        if not self.session_started:
+            self.session_started = _now()
 
     # ---------- persistentie ----------
     @classmethod
@@ -81,6 +95,7 @@ class Portfolio:
             realized_pnl_eur=float(raw.get("realized_pnl_eur", 0.0)),
             fees_paid_eur=float(raw.get("fees_paid_eur", 0.0)),
             trades=int(raw.get("trades", 0)),
+            session_started=_session_started_from(raw),
         )
         known = {f.name for f in fields(Position)}
         for sym, p in (raw.get("positions") or {}).items():
@@ -103,6 +118,7 @@ class Portfolio:
             "realized_pnl_eur": round(self.realized_pnl_eur, 4),
             "fees_paid_eur": round(self.fees_paid_eur, 4),
             "trades": self.trades,
+            "session_started": self.session_started or _now(),
             "positions": {s: asdict(p) for s, p in self.positions.items()},
         }
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")

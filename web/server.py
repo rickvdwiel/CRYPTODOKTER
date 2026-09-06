@@ -141,15 +141,42 @@ def api_watchlist() -> dict:
     return {"items": rows}
 
 
-def api_trades(limit: int = 30) -> dict:
+def _fnum(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def api_trades(limit: int = 40) -> dict:
+    pf = Portfolio.load()
+    since = pf.session_started or ""
     if not TRADES_FILE.exists():
-        return {"items": []}
+        return {"items": [], "session_started": since, "deze_ronde": 0}
     import csv
     rows = []
     with TRADES_FILE.open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             rows.append(row)
-    return {"items": list(reversed(rows[-limit:]))}
+    items = []
+    for row in reversed(rows[-limit:]):
+        items.append({
+            "tijd": row.get("tijd") or "",
+            "kant": row.get("kant") or "",
+            "symbool": row.get("symbool") or "",
+            "aantal": row.get("aantal") or "",
+            "prijs_eur": _fnum(row.get("prijs_eur")),
+            "bedrag_eur": _fnum(row.get("bedrag_eur")),
+            "fee_eur": _fnum(row.get("fee_eur")),
+            "pnl_eur": _fnum(row.get("pnl_eur")),
+            "reden": row.get("reden") or "",
+            "deze_ronde": bool(since and (row.get("tijd") or "") >= since),
+        })
+    return {
+        "items": items,
+        "session_started": since,
+        "deze_ronde": sum(1 for t in items if t["deze_ronde"]),
+    }
 
 
 def api_scheduler() -> dict:
@@ -166,6 +193,9 @@ def api_scheduler() -> dict:
         "scan_over_u": round(scheduler._hours_left(
             state.get("last_scan"), bot_config.SCAN_EVERY_HOURS, now), 2),
         "label": bot_config.LAUNCHD_LABEL,
+        "tick_every": bot_config.TICK_EVERY_HOURS,
+        "scan_every": bot_config.SCAN_EVERY_HOURS,
+        "minuut": bot_config.LAUNCHD_MINUTE,
     }
 
 

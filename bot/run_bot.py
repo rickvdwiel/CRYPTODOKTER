@@ -371,7 +371,7 @@ def perform_reset() -> dict:
     pf.save()
     return {"ok": True,
             "melding": f"Papieren portefeuille gereset naar €{config.START_BUDGET_EUR:.2f}. "
-                       "(Het logboek blijft staan.)",
+                       "(Het logboek blijft staan; de blotter toont deze ronde.)",
             "summary": pf.summary()}
 
 

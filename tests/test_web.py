@@ -115,9 +115,22 @@ class TestApi(WebTestCase):
         d = server.api_scheduler()
         self.assertEqual(d["ticks"], 0)
         self.assertIsNone(d["last_tick"])
+        self.assertIn("minuut", d)
 
     def test_trades_leeg(self):
         self.assertEqual(server.api_trades()["items"], [])
+
+    def test_trades_met_koop(self):
+        pf = Portfolio()
+        pf.buy("TEST", 1.0, budget_eur=10.0, liquidity_usd=1_000_000)
+        pf.save()
+        d = server.api_trades()
+        self.assertEqual(len(d["items"]), 1)
+        self.assertEqual(d["items"][0]["kant"], "BUY")
+        self.assertEqual(d["items"][0]["symbool"], "TEST")
+        self.assertTrue(d["items"][0]["deze_ronde"])
+        self.assertEqual(d["deze_ronde"], 1)
+        self.assertGreater(d["items"][0]["bedrag_eur"], 0)
 
     def test_actie_reset(self):
         pf = Portfolio()
@@ -184,6 +197,8 @@ class TestHttp(WebTestCase):
         self.assertIn("onderzoek(", body)
         self.assertIn("id=\"sonar\"", body)
         self.assertIn("id=\"exam\"", body)
+        self.assertIn("id=\"fills\"", body)
+        self.assertIn("id=\"clock\"", body)
 
     def test_health(self):
         status, body = self._get("/api/health")
