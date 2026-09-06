@@ -205,3 +205,8 @@ cryptodokter/
 - bot/scheduler.py: uurlijks --tick, dagelijks --scan; rotating log data/scheduler.log; CLI --once/--tick-only/--scan-only/--dry-run.
 - tests/test_scheduler.py: offline tests (logging, tick/scan fail-open, CLI).
 - deploy/nl.cryptodokter.paperbot.plist + docs/SCHEDULER.md voor macOS launchd.
+
+[grok, sep 2026] Trendwatchers in news_rss:
+- radar/sources/news_rss.py: naast Google/Bing nu 17 RSS-watchers (NL: newsbit, crypto-insiders, bitcoinmagazine-nl, cryptofocus + intl CoinTelegraph/CoinDesk/Decrypt/…). Fail-open. cryptoinside.nl is dood → crypto-insiders.nl.
+- search() blijft compatibel (google/bing/total/newest) + nieuw veld watchers.
+- tests/test_news_watchers.py; signals-rapport toont watcher-hits.
