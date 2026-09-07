@@ -1,7 +1,8 @@
 # CryptoDokter — Handoff voor jcode 🩺🚀
 
 > **Laatst gevalideerd:** april 2026 · Python 3.9 · macOS
-> **GitHub:** https://github.com/rickvdwiel/CRYPTODOKTER (branch `main`)
+> **GitHub:** https://github.com/rickvdwiel/CRYPTODOKTER
+> **Actuele overdracht (sep 2026):** `docs/HANDOFF-CLAUDE.md` — branch `feature/paper-scheduler`, niet `main`
 
 ## 1. Wat is dit project?
 

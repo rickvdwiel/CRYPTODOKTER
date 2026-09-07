@@ -4,6 +4,7 @@
 > **Repo:** https://github.com/rickvdwiel/CRYPTODOKTER (branch `main`)
 > **Stand:** september 2026 · Python 3.9 · macOS · 101 tests groen
 > **Vorige handoff:** `docs/HANDOFF-JCODE.md` (technische changelog per fase)
+> **Claude Code:** `docs/HANDOFF-CLAUDE.md` (actuele stand: autonoom papier, €100, PR #1)
 
 ---
 
