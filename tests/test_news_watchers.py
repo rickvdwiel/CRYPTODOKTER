@@ -46,6 +46,15 @@ class TestTrendWatchers(unittest.TestCase):
         names = {f["name"] for f in feeds}
         self.assertIn("newsbit", names)
         self.assertIn("crypto-insiders", names)
+        self.assertIn("coinliners", names)
+        self.assertIn("coinjournal-nl", names)
+        self.assertIn("watsonlaw", names)
+        self.assertIn("cryptodaily", names)
+        self.assertIn("bankless", names)
+        self.assertIn("watcher-guru", names)
+        self.assertIn("cryptonews", names)
+        self.assertIn("bloomberg-crypto", names)
+        self.assertGreaterEqual(len(feeds), 50)
         self.assertTrue(all(f["url"].startswith("http") for f in feeds))
 
 

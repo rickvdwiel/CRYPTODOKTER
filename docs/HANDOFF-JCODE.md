@@ -210,3 +210,19 @@ cryptodokter/
 - radar/sources/news_rss.py: naast Google/Bing nu 17 RSS-watchers (NL: newsbit, crypto-insiders, bitcoinmagazine-nl, cryptofocus + intl CoinTelegraph/CoinDesk/Decrypt/…). Fail-open. cryptoinside.nl is dood → crypto-insiders.nl.
 - search() blijft compatibel (google/bing/total/newest) + nieuw veld watchers.
 - tests/test_news_watchers.py; signals-rapport toont watcher-hits.
+
+
+[CryptoDokter Newsbronnen, 2026-09-07] TREND_FEEDS 17 → 51 (+34):
+- NL: coinliners, coinjournal-nl, dutchblockchainweek, watsonlaw, haasonline.
+- Intl (eerder klaar, nu pas live): coinjournal, cryptobriefing, coinpedia, forkast,
+  crypto-news, coinspeaker, nftgators, investing-crypto, coingape, bitcoinist,
+  fxstreet-crypto, coingeek.
+- Intl (nieuwe jacht): cryptodaily, bankless, trustnodes, protos, watcher-guru,
+  unchained, glassnode-insights, thedailygwei, cryptonews, techcrunch-bitcoin,
+  coinshares, blockonomi, bloomberg-crypto, deribit-insights, crunchbase-crypto,
+  livebitcoinnews, coindoo.
+- Alleen feeds met HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
+- Overgeslagen: Blockworks/The Defiant (403), cryptoinside.nl (dood/te koop),
+  meeste NL-kandidaten (404/SSL/HTML).
+- tests/test_news_watchers.py: asserts op nieuwe ids (≥50 feeds).
+- search() contract ongewijzigd (google/bing/watchers/total/newest).
