@@ -79,6 +79,9 @@ TREND_FEEDS: dict[str, str] = {
     "tronweekly": "https://tronweekly.com/feed/",
     "financemagnates-crypto": "https://www.financemagnates.com/cryptocurrency/feed/",
     "chainalysis": "https://www.chainalysis.com/blog/feed/",
+    "cryptonews-nl": "https://cryptonews.com/nl/feed/",
+    "pymnts-crypto": "https://www.pymnts.com/category/cryptocurrency/feed/",
+    "ft-crypto": "https://www.ft.com/crypto?format=rss",
 }
 
 

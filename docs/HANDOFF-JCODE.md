@@ -231,3 +231,8 @@ cryptodokter/
 - NL: beincrypto-nl.
 - Intl: zycrypto, tronweekly, financemagnates-crypto, chainalysis.
 - Push via contents write omdat GitHub MCP needsAuth bleef. cryptoinside.nl niet gebruikt.
+
+[CryptoDokter.nl, 2026-09-09] TREND_FEEDS 56 → 59 (+3, Newsbronnen gevalideerd):
+- NL: cryptonews-nl.
+- Intl: pymnts-crypto, ft-crypto.
+- Categorie-feeds van al aanwezige sites overgeslagen. cryptoinside.nl niet gebruikt.
