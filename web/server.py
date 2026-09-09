@@ -134,104 +134,175 @@ def api_watchlist() -> dict:
 
 
 INDEX_HTML = """<!doctype html>
-<html lang="nl"><head>
+<html lang="nl" translate="no"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CryptoDokter 🩺</title>
+<meta name="google" content="notranslate">
+<title>CryptoDokter</title>
 <style>
- :root{--bg:#0d1117;--card:#161b22;--line:#30363d;--tx:#e6edf3;--dim:#8b949e;
-       --up:#3fb950;--down:#f85149;--warn:#d29922}
+ :root{
+  --bg:#070b10; --card:#12181f; --line:#243041; --tx:#e8eef6; --dim:#8b98a8;
+  --up:#3dd68c; --down:#ff6b6b; --warn:#e6b450; --accent:#7aa2ff; --paper:#d7b56d;
+ }
  *{box-sizing:border-box}
- body{margin:0;background:var(--bg);color:var(--tx);
-      font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
- header{padding:22px 20px;border-bottom:1px solid var(--line)}
- h1{margin:0;font-size:22px}
+ body{margin:0;background:
+   radial-gradient(900px 420px at 10% -10%, #17304a 0%, transparent 55%),
+   var(--bg);
+   color:var(--tx);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+ header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+        padding:28px 22px 18px;border-bottom:1px solid var(--line)}
+ .brand h1{margin:0;font-size:26px;letter-spacing:-.03em}
+ .brand h1 span{color:var(--accent)}
  .sub{color:var(--dim);font-size:13px;margin-top:4px}
- main{padding:20px;max-width:1100px;margin:0 auto}
- .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
-       padding:16px;margin-bottom:18px}
- h2{margin:0 0 12px;font-size:16px}
- table{width:100%;border-collapse:collapse;font-size:14px}
- th{text-align:left;color:var(--dim);font-weight:500;padding:6px 8px;
-    border-bottom:1px solid var(--line)}
- td{padding:7px 8px;border-bottom:1px solid #21262d}
- tr:last-child td{border-bottom:none}
- .up{color:var(--up)}.down{color:var(--down)}.dim{color:var(--dim)}
- .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
- .kpi{background:#0d1117;border:1px solid var(--line);border-radius:8px;padding:12px}
- .kpi b{display:block;font-size:20px;margin-top:2px}
+ .pills{display:flex;gap:8px;flex-wrap:wrap}
+ .pill{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);
+       color:var(--dim);background:#0c1218}
+ .pill.paper{color:#1b1408;background:var(--paper);border-color:var(--paper);font-weight:650}
+ .pill.ok{color:var(--up);border-color:#1f6b45}
+ main{padding:22px;max-width:1080px;margin:0 auto}
+ .card{background:rgba(18,24,31,.92);border:1px solid var(--line);border-radius:16px;
+       padding:18px 18px 14px;margin-bottom:16px}
+ .card h2{margin:0;font-size:15px;font-weight:650}
+ .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+ .status{font-size:12px;color:var(--dim)}
+ .grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+ @media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ .kpi{background:#0b1117;border:1px solid var(--line);border-radius:12px;padding:12px}
  .kpi span{color:var(--dim);font-size:12px}
- .tag{font-size:11px;padding:2px 7px;border-radius:99px;border:1px solid var(--line)}
- .rug{color:var(--down);border-color:var(--down)}
- .mid{color:var(--warn);border-color:var(--warn)}
- .ok{color:var(--up);border-color:var(--up)}
- a{color:#58a6ff;text-decoration:none}
- .note{color:var(--dim);font-size:12px;margin-top:10px}
- footer{padding:16px 20px;color:var(--dim);font-size:12px;border-top:1px solid var(--line)}
+ .kpi b{display:block;font-size:22px;margin-top:4px;letter-spacing:-.03em}
+ .up{color:var(--up)}.down{color:var(--down)}.dim{color:var(--dim)}
+ table{width:100%;border-collapse:collapse;font-size:14px}
+ th{text-align:left;color:var(--dim);font-weight:500;padding:8px;border-bottom:1px solid var(--line)}
+ td{padding:9px 8px;border-bottom:1px solid #1b2430}
+ tr:last-child td{border-bottom:none}
+ .tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line)}
+ .rug{color:var(--down);border-color:#6b2a2a}
+ .mid{color:var(--warn);border-color:#6b5520}
+ .oktag{color:var(--up);border-color:#1f6b45}
+ a{color:var(--accent);text-decoration:none}
+ .empty{padding:8px 2px 4px;color:var(--dim);font-size:13px}
+ .skel{height:64px;border-radius:12px;background:linear-gradient(90deg,#0b1117,#16202b,#0b1117);
+       background-size:200% 100%;animation:sh 1.2s infinite}
+ @keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+ footer{padding:8px 22px 22px;color:var(--dim);font-size:12px}
 </style></head><body>
 <header>
-  <h1>CryptoDokter 🩺</h1>
-  <div class="sub">Vroege trend-radar + papieren portefeuille · alles virtueel,
-    geen financieel advies</div>
+  <div class="brand">
+    <h1>Crypto<span>Dokter</span></h1>
+    <div class="sub">Vroege trend-radar en een papieren portefeuille. Alles virtueel.</div>
+  </div>
+  <div class="pills">
+    <span class="pill paper">Alleen papier</span>
+    <span class="pill" id="health">verbinding…</span>
+  </div>
 </header>
 <main>
-  <div class="card"><h2>Papieren portefeuille</h2><div id="pf">laden…</div></div>
-  <div class="card"><h2>Radar — kandidaten nu</h2><div id="radar">laden…</div></div>
-  <div class="card"><h2>Watchlist</h2><div id="wl">laden…</div></div>
+  <section class="card">
+    <div class="head"><h2>Papieren portefeuille</h2><span class="status" id="pf-st">laden</span></div>
+    <div id="pf"><div class="skel"></div></div>
+  </section>
+  <section class="card">
+    <div class="head"><h2>Radar</h2><span class="status" id="rd-st">zoeken</span></div>
+    <div id="radar"><div class="skel"></div></div>
+  </section>
+  <section class="card">
+    <div class="head"><h2>Watchlist</h2><span class="status" id="wl-st">laden</span></div>
+    <div id="wl"><div class="skel"></div></div>
+  </section>
 </main>
-<footer>⚠️ Geen financieel advies. Micro-caps gaan meestal naar nul.
-  Deze site handelt uitsluitend op papier.</footer>
+<footer>Geen financieel advies. Micro-caps gaan meestal naar nul. Deze site handelt nooit echt.</footer>
 <script>
-const eur=n=>'€'+Number(n).toFixed(2);
-const pct=n=>(n>=0?'+':'')+Number(n).toFixed(2)+'%';
-const cls=n=>n>=0?'up':'down';
+const eur=n=>'€'+Number(n||0).toFixed(2);
+const pct=n=>(Number(n)>=0?'+':'')+Number(n||0).toFixed(2)+'%';
+const cls=n=>Number(n)>=0?'up':'down';
 function tag(risk){
   if(!risk) return '';
-  const c = risk.includes('RUG')?'rug':(risk.includes('iets')?'mid':
-            (risk.includes('onbekend')?'':'ok'));
+  const c = risk.includes('RUG')?'rug':(risk.includes('iets')?'mid':(risk.includes('onbekend')?'':'oktag'));
   return `<span class="tag ${c}">${risk}</span>`;
 }
-async function load(){
- try{
-  const pf=await (await fetch('/api/portfolio')).json();
-  document.getElementById('pf').innerHTML=`
-   <div class="grid">
-    <div class="kpi"><span>Waarde</span><b>${eur(pf.equity_eur)}</b></div>
-    <div class="kpi"><span>Rendement</span><b class="${cls(pf.rendement_pct)}">${pct(pf.rendement_pct)}</b></div>
-    <div class="kpi"><span>Kas</span><b>${eur(pf.cash_eur)}</b></div>
-    <div class="kpi"><span>Trades</span><b>${pf.trades}</b></div>
-    <div class="kpi"><span>Fees betaald</span><b>${eur(pf.fees_paid_eur)}</b></div>
-   </div>` + (pf.posities.length?`
-   <table><tr><th>Symbool</th><th>Aantal</th><th>Instap</th><th>P&L</th><th>Reden</th></tr>
-   ${pf.posities.map(p=>`<tr><td><b>${p.symbol}</b></td><td>${p.qty}</td>
-    <td>€${p.entry.toPrecision(4)}</td><td class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td>
-    <td class="dim">${p.note}</td></tr>`).join('')}</table>`
-   :'<p class="note">Nog geen open posities. Draai <code>python -m bot.run_bot --scan</code>.</p>');
-
-  const rd=await (await fetch('/api/radar')).json();
-  document.getElementById('radar').innerHTML = rd.online ? (rd.kandidaten.length?`
-   <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Liquiditeit</th>
-   <th>Risico</th><th>X</th><th>Nieuws</th><th></th></tr>
-   ${rd.kandidaten.map(k=>`<tr><td><b>${k.symbol}</b> <span class="dim">${k.chain||''}</span></td>
-    <td>${k.score}</td><td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'-'}</td>
-    <td>$${Math.round(k.liquidity_usd).toLocaleString('nl-NL')}</td>
-    <td>${tag(k.risk)}</td><td>${k.x_count}</td><td>${k.news}</td>
-    <td>${k.url?`<a href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}</td></tr>`).join('')}
-   </table><p class="note">Ververst hooguit elke 5 minuten (bronnen ontzien).</p>`
-   :'<p class="note">Geen kandidaten gevonden.</p>')
-   : `<p class="note">${rd.melding}</p>`;
-
-  const wl=await (await fetch('/api/watchlist')).json();
-  document.getElementById('wl').innerHTML = wl.items.length?`
-   <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Risico</th></tr>
-   ${wl.items.map(k=>`<tr><td><b>${k.symbol}</b></td><td>${k.score??'-'}</td>
-    <td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'-'}</td>
-    <td>${tag(k.risk||'')}</td></tr>`).join('')}</table>`
-   :'<p class="note">Watchlist is leeg (data/watchlist.txt).</p>';
- }catch(e){
-  document.getElementById('radar').innerHTML='<p class="note">Fout bij laden: '+e+'</p>';
- }
+async function get(url, ms){
+  const ctl = new AbortController();
+  const t = setTimeout(()=>ctl.abort(), ms);
+  try{
+    const r = await fetch(url, {signal:ctl.signal});
+    if(!r.ok) throw new Error('status '+r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
 }
-load(); setInterval(load, 60000);
+function paintPortfolio(pf){
+  document.getElementById('pf-st').textContent = pf.trades ? pf.trades+' trades' : 'nog geen trades';
+  const rows = (pf.posities||[]);
+  document.getElementById('pf').innerHTML = `
+    <div class="grid">
+      <div class="kpi"><span>Waarde</span><b>${eur(pf.equity_eur)}</b></div>
+      <div class="kpi"><span>Rendement</span><b class="${cls(pf.rendement_pct)}">${pct(pf.rendement_pct)}</b></div>
+      <div class="kpi"><span>Kas</span><b>${eur(pf.cash_eur)}</b></div>
+      <div class="kpi"><span>Trades</span><b>${pf.trades||0}</b></div>
+      <div class="kpi"><span>Fees</span><b>${eur(pf.fees_paid_eur)}</b></div>
+    </div>` + (rows.length ? `
+    <table><tr><th>Symbool</th><th>Aantal</th><th>Instap</th><th>P&L</th><th>Reden</th></tr>
+    ${rows.map(p=>`<tr><td><b>${p.symbol}</b></td><td>${p.qty}</td>
+      <td>€${Number(p.entry).toPrecision(4)}</td>
+      <td class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td>
+      <td class="dim">${p.note||''}</td></tr>`).join('')}</table>`
+    : '<p class="empty">Nog geen open posities. De paper-bot vult dit als hij een scan draait.</p>');
+}
+function paintRadar(rd){
+  const box = document.getElementById('radar');
+  const st = document.getElementById('rd-st');
+  if(!rd.online){
+    st.textContent = 'offline';
+    box.innerHTML = `<p class="empty">${rd.melding||'Geen live data.'}</p>`;
+    return;
+  }
+  const rows = rd.kandidaten||[];
+  st.textContent = rows.length ? rows.length+' kandidaten' : 'leeg';
+  box.innerHTML = rows.length ? `
+    <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Liquiditeit</th><th>Risico</th><th>X</th><th>Nieuws</th><th></th></tr>
+    ${rows.map(k=>`<tr>
+      <td><b>${k.symbol}</b> <span class="dim">${k.chain||''}</span></td>
+      <td>${k.score}</td>
+      <td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</td>
+      <td>$${Math.round(k.liquidity_usd||0).toLocaleString('nl-NL')}</td>
+      <td>${tag(k.risk)}</td><td>${k.x_count??'—'}</td><td>${k.news??'—'}</td>
+      <td>${k.url?`<a href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}</td>
+    </tr>`).join('')}</table>
+    <p class="empty">Ververst hooguit elke 5 minuten.</p>`
+    : '<p class="empty">Geen kandidaten die nu door het filter komen.</p>';
+}
+function paintWatch(wl){
+  const rows = wl.items||[];
+  document.getElementById('wl-st').textContent = rows.length ? rows.length+' tokens' : 'leeg';
+  document.getElementById('wl').innerHTML = rows.length ? `
+    <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Risico</th></tr>
+    ${rows.map(k=>`<tr><td><b>${k.symbol}</b></td><td>${k.score??'—'}</td>
+      <td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</td>
+      <td>${tag(k.risk||'')}</td></tr>`).join('')}</table>`
+    : '<p class="empty">Watchlist is leeg. Er staat nog niets om te volgen.</p>';
+}
+async function load(){
+  get('/api/health', 4000).then(h=>{
+    document.getElementById('health').textContent = h.online ? 'online' : 'offline';
+    document.getElementById('health').className = h.online ? 'pill ok' : 'pill';
+  }).catch(()=>{ document.getElementById('health').textContent = 'geen verbinding'; });
+
+  get('/api/portfolio', 8000).then(paintPortfolio).catch(()=>{
+    document.getElementById('pf-st').textContent = 'fout';
+    document.getElementById('pf').innerHTML = '<p class="empty">Portefeuille laadde niet.</p>';
+  });
+
+  get('/api/watchlist', 8000).then(paintWatch).catch(()=>{
+    document.getElementById('wl-st').textContent = 'fout';
+    document.getElementById('wl').innerHTML = '<p class="empty">Watchlist laadde niet.</p>';
+  });
+
+  document.getElementById('rd-st').textContent = 'zoeken';
+  get('/api/radar', 12000).then(paintRadar).catch(()=>{
+    document.getElementById('rd-st').textContent = 'traag';
+    document.getElementById('radar').innerHTML = '<p class="empty">Radar reageert nog niet. De scan duurt langer dan gewoon, de rest van het scherm blijft bruikbaar.</p>';
+  });
+}
+load();
+setInterval(load, 60000);
 </script></body></html>"""
 
 
