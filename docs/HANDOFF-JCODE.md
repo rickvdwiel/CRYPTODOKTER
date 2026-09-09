@@ -226,3 +226,8 @@ cryptodokter/
   meeste NL-kandidaten (404/SSL/HTML).
 - tests/test_news_watchers.py: asserts op nieuwe ids (≥50 feeds).
 - search() contract ongewijzigd (google/bing/watchers/total/newest).
+
+[CryptoDokter.nl, 2026-09-09] TREND_FEEDS 51 → 56 (+5, Newsbronnen gevalideerd):
+- NL: beincrypto-nl.
+- Intl: zycrypto, tronweekly, financemagnates-crypto, chainalysis.
+- Push via contents write omdat GitHub MCP needsAuth bleef. cryptoinside.nl niet gebruikt.

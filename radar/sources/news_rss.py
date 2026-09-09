@@ -31,6 +31,7 @@ TREND_FEEDS: dict[str, str] = {
     "dutchblockchainweek": "https://dutchblockchainweek.com/feed/",
     "watsonlaw": "https://watsonlaw.nl/en/feed",
     "haasonline": "https://haasonline.com/blog/feed",
+    "beincrypto-nl": "https://nl.beincrypto.com/feed/",
     # Internationaal
     "cointelegraph": "https://cointelegraph.com/rss",
     "coindesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
@@ -74,6 +75,10 @@ TREND_FEEDS: dict[str, str] = {
     "crunchbase-crypto": "https://news.crunchbase.com/sections/crypto/feed/",
     "livebitcoinnews": "https://www.livebitcoinnews.com/feed/",
     "coindoo": "https://coindoo.com/feed/",
+    "zycrypto": "https://zycrypto.com/feed/",
+    "tronweekly": "https://tronweekly.com/feed/",
+    "financemagnates-crypto": "https://www.financemagnates.com/cryptocurrency/feed/",
+    "chainalysis": "https://www.chainalysis.com/blog/feed/",
 }
 
 
