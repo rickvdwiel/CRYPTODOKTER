@@ -741,6 +741,7 @@ function paintChart(data){
   const st = document.getElementById('ch-st');
   const canvas = document.getElementById('eq-chart');
   if(!canvas) return;
+  if(window._chartAnim){ cancelAnimationFrame(window._chartAnim); window._chartAnim=null; }
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
   const cssW = canvas.clientWidth || 680;
@@ -748,11 +749,11 @@ function paintChart(data){
   canvas.width = Math.floor(cssW * dpr);
   canvas.height = Math.floor(cssH * dpr);
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,cssW,cssH);
   const pts = (data.points||[]).filter(p=>p && p.equity!=null);
   const marks = data.markers||[];
-  st.textContent = marks.filter(m=>m.side==='BUY').length+' buys · '+marks.filter(m=>m.side==='SELL').length+' sells';
+  st.textContent = marks.filter(m=>m.side==='BUY').length+' buys · '+marks.filter(m=>m.side==='SELL').length+' sells · live';
   if(!pts.length){
+    ctx.clearRect(0,0,cssW,cssH);
     ctx.fillStyle = '#8b98a8';
     ctx.font = '13px sans-serif';
     ctx.fillText('Nog geen equity-punten — hyper-cycle start zo.', 12, 100);
@@ -765,41 +766,127 @@ function paintChart(data){
   const W=cssW-padL-padR, H=cssH-padT-padB;
   const xAt = i => padL + (pts.length===1? W/2 : i/(pts.length-1)*W);
   const yAt = v => padT + (1-((v-min)/(max-min)))*H;
-  // grid
-  ctx.strokeStyle='#1c2633'; ctx.lineWidth=1;
-  for(let g=0;g<4;g++){
-    const y=padT + H*g/3;
-    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+W,y); ctx.stroke();
-  }
-  // equity line
-  ctx.beginPath();
-  pts.forEach((p,i)=>{ const x=xAt(i), y=yAt(Number(p.equity)); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
-  ctx.strokeStyle='#5ce1ff'; ctx.lineWidth=2; ctx.stroke();
-  // markers mapped by nearest time index
   function nearestIdx(t){
     if(!t || t==='start') return 0;
     let best=0, bd=1e18;
     pts.forEach((p,i)=>{ const d=Math.abs(Date.parse(p.t||0)-Date.parse(t)); if(!isNaN(d)&&d<bd){bd=d;best=i;} });
     return best;
   }
-  marks.forEach(m=>{
-    const i = nearestIdx(m.t);
-    const x = xAt(Math.min(i, pts.length-1));
-    const y = yAt(Number(pts[Math.min(i,pts.length-1)].equity));
-    ctx.beginPath();
-    if(m.side==='BUY'){
-      ctx.fillStyle='#3dd68c';
-      ctx.moveTo(x,y-7); ctx.lineTo(x-5,y+3); ctx.lineTo(x+5,y+3);
-    } else {
-      ctx.fillStyle='#ff6b6b';
-      ctx.moveTo(x,y+7); ctx.lineTo(x-5,y-3); ctx.lineTo(x+5,y-3);
-    }
-    ctx.closePath(); ctx.fill();
+  const markPts = marks.map(m=>{
+    const i = Math.min(nearestIdx(m.t), pts.length-1);
+    return {side:m.side, x:xAt(i), y:yAt(Number(pts[i].equity)), symbol:m.symbol};
   });
-  // y labels
-  ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
-  ctx.fillText('€'+max.toFixed(0), 4, padT+10);
-  ctx.fillText('€'+min.toFixed(0), 4, padT+H);
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = reduce ? 0 : 1100;
+  const t0 = performance.now();
+  function frame(now){
+    const p = dur<=0 ? 1 : Math.min(1, (now-t0)/dur);
+    // ease-out cubic
+    const e = 1 - Math.pow(1-p, 3);
+    ctx.clearRect(0,0,cssW,cssH);
+    // grid
+    ctx.strokeStyle='#1c2633'; ctx.lineWidth=1;
+    for(let g=0;g<4;g++){
+      const y=padT + H*g/3;
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+W,y); ctx.stroke();
+    }
+    // progressive equity line
+    const nShow = Math.max(1, Math.floor(1 + (pts.length-1)*e));
+    const frac = (pts.length===1) ? 1 : ((1+(pts.length-1)*e) - nShow);
+    ctx.beginPath();
+    for(let i=0;i<nShow;i++){
+      const x=xAt(i), y=yAt(Number(pts[i].equity));
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    if(nShow < pts.length && frac>0){
+      const x0=xAt(nShow-1), y0=yAt(Number(pts[nShow-1].equity));
+      const x1=xAt(nShow), y1=yAt(Number(pts[nShow].equity));
+      ctx.lineTo(x0+(x1-x0)*frac, y0+(y1-y0)*frac);
+    }
+    // glow
+    ctx.strokeStyle='rgba(92,225,255,.25)'; ctx.lineWidth=6; ctx.stroke();
+    ctx.beginPath();
+    for(let i=0;i<nShow;i++){
+      const x=xAt(i), y=yAt(Number(pts[i].equity));
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    if(nShow < pts.length && frac>0){
+      const x0=xAt(nShow-1), y0=yAt(Number(pts[nShow-1].equity));
+      const x1=xAt(nShow), y1=yAt(Number(pts[nShow].equity));
+      ctx.lineTo(x0+(x1-x0)*frac, y0+(y1-y0)*frac);
+    }
+    ctx.strokeStyle='#5ce1ff'; ctx.lineWidth=2; ctx.stroke();
+    // head pulse
+    const headI = Math.min(nShow-1, pts.length-1);
+    let hx=xAt(headI), hy=yAt(Number(pts[headI].equity));
+    if(nShow < pts.length && frac>0){
+      const x0=xAt(nShow-1), y0=yAt(Number(pts[nShow-1].equity));
+      const x1=xAt(nShow), y1=yAt(Number(pts[nShow].equity));
+      hx=x0+(x1-x0)*frac; hy=y0+(y1-y0)*frac;
+    }
+    const pulse = 0.5 + 0.5*Math.sin(now/180);
+    ctx.beginPath();
+    ctx.arc(hx, hy, 3+pulse*2, 0, Math.PI*2);
+    ctx.fillStyle='rgba(92,225,255,'+(0.55+pulse*0.35)+')';
+    ctx.fill();
+    // markers appear after line reaches them
+    const revealX = hx;
+    markPts.forEach((mp, mi)=>{
+      if(mp.x > revealX + 2 && p < 1) return;
+      const pop = reduce ? 1 : Math.min(1, Math.max(0, (revealX - mp.x + 20)/40));
+      const s = 0.4 + 0.6*pop;
+      ctx.save();
+      ctx.translate(mp.x, mp.y);
+      ctx.scale(s, s);
+      ctx.beginPath();
+      if(mp.side==='BUY'){
+        ctx.fillStyle='#3dd68c';
+        ctx.moveTo(0,-8); ctx.lineTo(-6,4); ctx.lineTo(6,4);
+      } else {
+        ctx.fillStyle='#ff6b6b';
+        ctx.moveTo(0,8); ctx.lineTo(-6,-4); ctx.lineTo(6,-4);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+    // y labels
+    ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
+    ctx.fillText('€'+max.toFixed(0), 4, padT+10);
+    ctx.fillText('€'+min.toFixed(0), 4, padT+H);
+    if(p < 1){
+      window._chartAnim = requestAnimationFrame(frame);
+    } else {
+      function pulseOnly(ts){
+        // redraw full static scene with pulsing head
+        const pe = 1;
+        ctx.clearRect(0,0,cssW,cssH);
+        ctx.strokeStyle='#1c2633'; ctx.lineWidth=1;
+        for(let g=0;g<4;g++){ const y=padT+H*g/3; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+W,y); ctx.stroke(); }
+        ctx.beginPath();
+        pts.forEach((pt,i)=>{ const x=xAt(i), y=yAt(Number(pt.equity)); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+        ctx.strokeStyle='rgba(92,225,255,.25)'; ctx.lineWidth=6; ctx.stroke();
+        ctx.beginPath();
+        pts.forEach((pt,i)=>{ const x=xAt(i), y=yAt(Number(pt.equity)); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+        ctx.strokeStyle='#5ce1ff'; ctx.lineWidth=2; ctx.stroke();
+        const xh=xAt(pts.length-1), yh=yAt(Number(pts[pts.length-1].equity));
+        const pul = 0.5 + 0.5*Math.sin(ts/180);
+        ctx.beginPath(); ctx.arc(xh,yh,3+pul*2,0,Math.PI*2);
+        ctx.fillStyle='rgba(92,225,255,'+(0.55+pul*0.35)+')'; ctx.fill();
+        markPts.forEach(mp=>{
+          ctx.beginPath();
+          if(mp.side==='BUY'){ ctx.fillStyle='#3dd68c'; ctx.moveTo(mp.x,mp.y-8); ctx.lineTo(mp.x-6,mp.y+4); ctx.lineTo(mp.x+6,mp.y+4); }
+          else { ctx.fillStyle='#ff6b6b'; ctx.moveTo(mp.x,mp.y+8); ctx.lineTo(mp.x-6,mp.y-4); ctx.lineTo(mp.x+6,mp.y-4); }
+          ctx.closePath(); ctx.fill();
+        });
+        ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
+        ctx.fillText('€'+max.toFixed(0), 4, padT+10);
+        ctx.fillText('€'+min.toFixed(0), 4, padT+H);
+        window._chartAnim = requestAnimationFrame(pulseOnly);
+      }
+      if(!reduce) window._chartAnim = requestAnimationFrame(pulseOnly);
+    }
+  }
+  window._chartAnim = requestAnimationFrame(frame);
 }
 
 async function load(){
