@@ -198,7 +198,7 @@ def api_hunt(dry_run: bool = False) -> dict:
             skipped.append({"symbol": sym, "reason": "liq"}); continue
         if not row.get("price_eur"):
             skipped.append({"symbol": sym, "reason": "geen prijs"}); continue
-        if sym in pf.positions:
+        if sym.upper() in pf.positions:
             skipped.append({"symbol": sym, "reason": "al binnen"}); continue
         if not row.get("is_new") and row["score"] < (bot_config.MIN_SCORE + 8):
             skipped.append({"symbol": sym, "reason": "niet nieuw"}); continue

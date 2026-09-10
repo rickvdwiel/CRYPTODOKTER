@@ -9,9 +9,9 @@ Early-hunt: nieuwe coins met potentie meteen paper-kopen.
 from __future__ import annotations
 
 # Portefeuille — YOLO-paper (virtueel)
-START_BUDGET_EUR = 20.0          # startkapitaal (papier)
-MAX_POSITIONS = 2                # focus: 1–2 bets
-POSITION_SIZE_PCT = 50.0         # % van startbudget per positie
+START_BUDGET_EUR = 70.0          # €20 start + €50 storting (papier)
+MAX_POSITIONS = 7                # €20 + €50 deposit → meer slots (~€10/stuk)
+POSITION_SIZE_PCT = 15.0         # ~€10 per bet bij €70 start (was 50% op €20)
 MIN_POSITION_EUR = 2.0           # kleiner heeft geen zin (fees vreten alles)
 
 # Kosten (realistisch houden, anders lieg je tegen jezelf)

@@ -211,7 +211,7 @@ def cmd_scan(dry_run: bool = False) -> int:
         if not price:
             print(f"  overslaan {sym:<12} geen bruikbare prijs")
             continue
-        if sym in pf.positions:
+        if sym.upper() in pf.positions:
             print(f"  overslaan {sym:<12} al in portefeuille")
             continue
         # Prioriteit: nieuwe coins; oudere alleen als score hard genoeg
