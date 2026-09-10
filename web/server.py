@@ -186,105 +186,118 @@ INDEX_HTML = """<!doctype html>
 <html lang="nl" translate="no"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#070b10">
+<meta name="theme-color" content="#06090e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="google" content="notranslate">
+<meta http-equiv="Cache-Control" content="no-store">
 <title>CryptoDokter</title>
 <style>
  :root{
-  --bg:#070b10; --card:#12181f; --line:#243041; --tx:#e8eef6; --dim:#8b98a8;
-  --up:#3dd68c; --down:#ff6b6b; --warn:#e6b450; --accent:#7aa2ff; --paper:#d7b56d;
-  --pad: max(14px, env(safe-area-inset-left));
-  --padr: max(14px, env(safe-area-inset-right));
+  --bg:#06090e; --surf:#0e141b; --line:#1c2633; --tx:#eef3f8; --dim:#8b98a8;
+  --up:#3dd68c; --down:#ff6b6b; --warn:#e6b450; --accent:#5ce1ff; --paper:#c9a227;
+  --pad: max(16px, env(safe-area-inset-left));
+  --padr: max(16px, env(safe-area-inset-right));
  }
  *{box-sizing:border-box}
  html{-webkit-text-size-adjust:100%}
- body{margin:0;background:
-   radial-gradient(900px 420px at 10% -10%, #17304a 0%, transparent 55%),
-   var(--bg);
-   color:var(--tx);
-   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-   padding-bottom:max(18px, env(safe-area-inset-bottom))}
- header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
-        padding:18px var(--padr) 14px var(--pad);border-bottom:1px solid var(--line);
-        position:sticky;top:0;z-index:5;background:rgba(7,11,16,.92);backdrop-filter:blur(10px)}
- .brand h1{margin:0;font-size:22px;letter-spacing:-.03em}
- .brand h1 span{color:var(--accent)}
- .sub{color:var(--dim);font-size:12px;margin-top:3px;max-width:42ch}
- .pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
- .pill{font-size:11px;padding:5px 10px;border-radius:99px;border:1px solid var(--line);
-       color:var(--dim);background:#0c1218;white-space:nowrap}
- .pill.paper{color:#1b1408;background:var(--paper);border-color:var(--paper);font-weight:650}
- .pill.ok{color:var(--up);border-color:#1f6b45}
- main{padding:14px var(--padr) 8px var(--pad);max-width:1080px;margin:0 auto}
- .card{background:rgba(18,24,31,.94);border:1px solid var(--line);border-radius:16px;
-       padding:14px;margin-bottom:12px}
- .card h2{margin:0;font-size:14px;font-weight:650}
+ body{margin:0;background:var(--bg);color:var(--tx);
+  font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  padding-bottom:max(20px, env(safe-area-inset-bottom))}
+ header{padding:max(14px, env(safe-area-inset-top)) var(--padr) 10px var(--pad);
+  border-bottom:1px solid var(--line);background:rgba(6,9,14,.94);
+  position:sticky;top:0;z-index:8;backdrop-filter:blur(12px)}
+ .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+ .brand{font-size:18px;font-weight:700;letter-spacing:-.03em}
+ .brand span{color:var(--accent)}
+ .statusline{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--dim)}
+ .statusline .dot{width:7px;height:7px;background:var(--dim);display:inline-block;margin-right:6px;border-radius:0}
+ .statusline .dot.on{background:var(--up);box-shadow:0 0 8px var(--up)}
+ .statusline .paper{color:var(--paper);font-weight:650;letter-spacing:.04em;text-transform:uppercase;font-size:11px}
+ main{padding:12px var(--padr) 8px var(--pad);max-width:720px;margin:0 auto}
+ .hero{display:grid;gap:14px;margin:6px 0 16px}
+ @media(min-width:700px){.hero{grid-template-columns:220px 1fr;align-items:center}}
+ .kicker{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-weight:650}
+ .hero h1{margin:4px 0 0;font-size:28px;letter-spacing:-.04em;line-height:1.1}
+ .updated{margin-top:6px;font-size:12px;color:var(--dim)}
+ .scope{position:relative;width:min(220px,70vw);aspect-ratio:1;margin:0 auto;
+  border-radius:50%;background:radial-gradient(circle at center,#072018 0%,#041018 55%,#02060c 100%);
+  border:1px solid #1b3d36;box-shadow:inset 0 0 40px rgba(92,225,255,.08),0 0 30px rgba(92,225,255,.05);
+  overflow:hidden}
+ .scope::before{content:"";position:absolute;inset:12%;border:1px solid rgba(92,225,255,.18);border-radius:50%}
+ .scope::after{content:"";position:absolute;inset:28%;border:1px solid rgba(92,225,255,.14);border-radius:50%}
+ .scope .crossx,.scope .crossy{position:absolute;background:rgba(92,225,255,.12)}
+ .scope .crossx{left:0;right:0;top:50%;height:1px}
+ .scope .crossy{top:0;bottom:0;left:50%;width:1px}
+ .sweep{position:absolute;inset:0;background:conic-gradient(from 0deg, transparent 0deg, transparent 280deg, rgba(92,225,255,.0) 300deg, rgba(92,225,255,.35) 360deg);
+  animation:spin 2.8s linear infinite;transform-origin:center}
+ @keyframes spin{to{transform:rotate(360deg)}}
+ .blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 1.6s ease-in-out infinite}
+ .blip.warn{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+ .blip.danger{background:var(--down);box-shadow:0 0 10px var(--down)}
+ @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}
+ .card{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+ .card h2{margin:0;font-size:13px;font-weight:650;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
  .head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
- .status{font-size:11px;color:var(--dim)}
- .grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
- .kpi{background:#0b1117;border:1px solid var(--line);border-radius:12px;padding:10px}
- .kpi span{color:var(--dim);font-size:11px}
- .kpi b{display:block;font-size:18px;margin-top:3px;letter-spacing:-.03em}
+ .status{font-size:12px;color:var(--dim)}
+ .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ @media(min-width:640px){.grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+ .kpi{padding:10px 0;border-bottom:1px solid var(--line)}
+ @media(min-width:640px){.kpi{border:none;padding:4px 0}}
+ .kpi span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+ .kpi b{display:block;font-size:22px;margin-top:2px;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
  .up{color:var(--up)}.down{color:var(--down)}.dim{color:var(--dim)}
- .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
- table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
- th{text-align:left;color:var(--dim);font-weight:500;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
- td{padding:9px 6px;border-bottom:1px solid #1b2430;vertical-align:middle}
- tr:last-child td{border-bottom:none}
- .tag{font-size:10px;padding:2px 7px;border-radius:99px;border:1px solid var(--line);display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
- .rug{color:var(--down);border-color:#6b2a2a}
- .mid{color:var(--warn);border-color:#6b5520}
- .oktag{color:var(--up);border-color:#1f6b45}
+ .radar-list{display:flex;flex-direction:column;gap:0}
+ .rcard{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:14px 0;border-bottom:1px solid var(--line)}
+ .rcard:last-child{border-bottom:none}
+ .sym{font-size:17px;font-weight:700;letter-spacing:-.02em}
+ .chain{font-size:12px;color:var(--dim);margin-left:6px}
+ .risk{font-size:11px;color:var(--dim);margin-top:4px}
+ .risk.rug{color:var(--down)}.risk.mid{color:var(--warn)}.risk.ok{color:var(--up)}
+ .meta{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:8px;font-size:12px;color:var(--dim)}
+ .meta b{color:var(--tx);font-weight:650;font-variant-numeric:tabular-nums}
+ .score{font-size:24px;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-align:right}
+ .btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;min-width:72px;
+  margin-top:8px;padding:0 14px;border:none;border-radius:8px;background:#182231;color:var(--accent);
+  font-size:13px;font-weight:600}
  a{color:var(--accent);text-decoration:none}
- .btn{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 12px;
-      border-radius:10px;border:1px solid var(--line);background:#0c1218;color:var(--accent);font-size:12px}
- .empty{padding:8px 2px 4px;color:var(--dim);font-size:12px}
- .skel{height:56px;border-radius:12px;background:linear-gradient(90deg,#0b1117,#16202b,#0b1117);
-       background-size:200% 100%;animation:sh 1.2s infinite}
+ .empty{padding:10px 0;color:var(--dim);font-size:13px}
+ .skel{height:52px;border-radius:8px;background:linear-gradient(90deg,#0b1117,#15202c,#0b1117);
+  background-size:200% 100%;animation:sh 1.1s infinite;margin-bottom:8px}
  @keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
- .radar-list{display:flex;flex-direction:column;gap:8px}
- .rcard{display:grid;grid-template-columns:1fr auto;gap:8px 10px;padding:12px;border:1px solid var(--line);
-        border-radius:14px;background:#0b1117}
- .rcard .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
- .rcard .sym{font-size:16px;font-weight:700;letter-spacing:-.02em}
- .rcard .score{font-size:18px;font-weight:700;color:var(--accent)}
- .rcard .meta{display:flex;flex-wrap:wrap;gap:8px 12px;font-size:12px;color:var(--dim)}
- .rcard .meta b{color:var(--tx);font-weight:600}
- .rcard .actions{display:flex;align-items:center;justify-content:flex-end}
- footer{padding:4px var(--padr) 18px var(--pad);color:var(--dim);font-size:11px}
- @media(max-width:720px){
-  header{flex-direction:column;align-items:stretch;gap:10px;padding-top:max(14px, env(safe-area-inset-top))}
-  .pills{justify-content:flex-start}
-  .brand h1{font-size:20px}
-  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .kpi b{font-size:17px}
-  .desk-only{display:none !important}
-  .card{padding:12px;border-radius:14px}
- }
- @media(min-width:721px){
-  .mobile-only{display:none !important}
-  .brand h1{font-size:26px}
-  .sub{font-size:13px}
+ footer{padding:8px var(--padr) 20px var(--pad);color:var(--dim);font-size:11px;max-width:720px;margin:0 auto}
+ @media (prefers-reduced-motion: reduce){
+  .sweep,.blip,.skel{animation:none !important}
  }
 </style></head><body>
 <header>
-  <div class="brand">
-    <h1>Crypto<span>Dokter</span></h1>
-    <div class="sub">Vroege trend-radar en een papieren portefeuille. Alles virtueel.</div>
-  </div>
-  <div class="pills">
-    <span class="pill paper">Alleen papier</span>
-    <span class="pill" id="health">verbinding…</span>
+  <div class="row">
+    <div class="brand">Crypto<span>Dokter</span></div>
+    <div class="statusline">
+      <span class="paper">Alleen papier</span>
+      <span id="health"><i class="dot" id="hdot"></i><span id="htext">…</span></span>
+    </div>
   </div>
 </header>
 <main>
+  <div class="hero">
+    <div class="scope" id="scope" aria-label="Animerende radar">
+      <div class="crossx"></div><div class="crossy"></div>
+      <div class="sweep"></div>
+      <div id="blips"></div>
+    </div>
+    <div>
+      <div class="kicker">Live radar</div>
+      <h1>Kandidaten nu</h1>
+      <div class="updated" id="rd-updated">bezig met scannen…</div>
+    </div>
+  </div>
   <section class="card" id="radar-card">
-    <div class="head"><h2>Radar — kandidaten nu</h2><span class="status" id="rd-st">scannen…</span></div>
-    <div id="radar"><div class="skel"></div><div class="skel" style="margin-top:8px;height:120px"></div></div>
+    <div class="head"><h2>Trending</h2><span class="status" id="rd-st">scannen…</span></div>
+    <div id="radar"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
   </section>
   <section class="card">
-    <div class="head"><h2>Papieren portefeuille</h2><span class="status" id="pf-st">laden</span></div>
+    <div class="head"><h2>Papier</h2><span class="status" id="pf-st">laden</span></div>
     <div id="pf"><div class="skel"></div></div>
   </section>
   <section class="card">
@@ -298,19 +311,40 @@ const eur=n=>'€'+Number(n||0).toFixed(2);
 const pct=n=>(Number(n)>=0?'+':'')+Number(n||0).toFixed(2)+'%';
 const cls=n=>Number(n)>=0?'up':'down';
 const money=n=>'$'+Math.round(Number(n||0)).toLocaleString('nl-NL');
-function tag(risk){
+function riskClass(risk){
   if(!risk) return '';
-  const c = risk.includes('RUG')?'rug':(risk.includes('iets')?'mid':(risk.includes('onbekend')?'':'oktag'));
-  return `<span class="tag ${c}">${risk}</span>`;
+  if(risk.includes('RUG')) return 'rug';
+  if(risk.includes('iets')) return 'mid';
+  if(risk.includes('onbekend')) return '';
+  return 'ok';
+}
+function blipClass(risk){
+  if(!risk) return '';
+  if(risk.includes('RUG') || risk.includes('onbekend')) return 'danger';
+  if(risk.includes('iets')) return 'warn';
+  return '';
 }
 async function get(url, ms){
   const ctl = new AbortController();
   const t = setTimeout(()=>ctl.abort(), ms);
   try{
-    const r = await fetch(url, {signal:ctl.signal});
+    const r = await fetch(url+'?t='+Date.now(), {signal:ctl.signal, cache:'no-store'});
     if(!r.ok) throw new Error('status '+r.status);
     return await r.json();
   } finally { clearTimeout(t); }
+}
+function paintBlips(rows){
+  const box = document.getElementById('blips');
+  if(!rows.length){ box.innerHTML=''; return; }
+  box.innerHTML = rows.slice(0,8).map((k,i)=>{
+    const score = Math.max(0, Math.min(100, Number(k.score)||0));
+    const r = 18 + (score/100)*32; // % from center
+    const ang = (i / Math.max(rows.length,1)) * Math.PI * 2 + (score/40);
+    const x = 50 + Math.cos(ang) * r;
+    const y = 50 + Math.sin(ang) * r;
+    const delay = (i*0.18).toFixed(2);
+    return `<span class="blip ${blipClass(k.risk)}" title="${k.symbol} · ${k.score}" style="left:${x}%;top:${y}%;animation-delay:${delay}s"></span>`;
+  }).join('');
 }
 function paintPortfolio(pf){
   document.getElementById('pf-st').textContent = pf.trades ? pf.trades+' trades' : 'nog geen trades';
@@ -322,83 +356,67 @@ function paintPortfolio(pf){
       <div class="kpi"><span>Kas</span><b>${eur(pf.cash_eur)}</b></div>
       <div class="kpi"><span>Trades</span><b>${pf.trades||0}</b></div>
       <div class="kpi"><span>Fees</span><b>${eur(pf.fees_paid_eur)}</b></div>
-    </div>` + (rows.length ? `
-    <div class="scroll"><table><tr><th>Symbool</th><th>Aantal</th><th>Instap</th><th>P&L</th><th>Reden</th></tr>
-    ${rows.map(p=>`<tr><td><b>${p.symbol}</b></td><td>${p.qty}</td>
-      <td>€${Number(p.entry).toPrecision(4)}</td>
-      <td class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td>
-      <td class="dim">${p.note||''}</td></tr>`).join('')}</table></div>`
-    : '<p class="empty">Nog geen open posities. De paper-bot vult dit als hij een scan draait.</p>');
+    </div>` + (rows.length ? rows.map(p=>`<div class="rcard"><div><div class="sym">${p.symbol}</div>
+      <div class="meta"><span>qty <b>${p.qty}</b></span><span>P&L <b class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</b></span></div></div></div>`).join('')
+    : '<p class="empty">Nog geen open posities.</p>');
 }
 function paintRadar(rd){
   const box = document.getElementById('radar');
   const st = document.getElementById('rd-st');
+  const upd = document.getElementById('rd-updated');
+  const now = new Date();
+  const stamp = now.toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit'});
   if(!rd.online){
     st.textContent = 'offline';
+    upd.textContent = 'geen live data';
+    paintBlips([]);
     box.innerHTML = `<p class="empty">${rd.melding||'Geen live data.'}</p>`;
     return;
   }
   const rows = rd.kandidaten||[];
   st.textContent = rows.length ? rows.length+' live' : 'leeg';
+  upd.textContent = rows.length ? `bijgewerkt ${stamp} · ${rows.length} kandidaten op de radar` : `bijgewerkt ${stamp} · geen kandidaten`;
+  paintBlips(rows);
   if(!rows.length){
     box.innerHTML = '<p class="empty">Geen kandidaten gevonden.</p>';
     return;
   }
-  const cards = rows.map(k=>`
+  box.innerHTML = `<div class="radar-list">${rows.map(k=>`
     <article class="rcard">
       <div>
-        <div class="top">
-          <span class="sym">${k.symbol}</span>
-          <span class="dim">${k.chain||''}</span>
-          ${tag(k.risk)}
-        </div>
+        <div><span class="sym">${k.symbol}</span><span class="chain">${k.chain||''}</span></div>
+        <div class="risk ${riskClass(k.risk)}">${k.risk||''}</div>
         <div class="meta">
           <span>24u <b class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</b></span>
-          <span>Liq <b>${money(k.liquidity_usd)}</b></span>
-          <span>DEX <b>${k.exchange||'—'}</b></span>
+          <span>liq <b>${money(k.liquidity_usd)}</b></span>
+          <span>dex <b>${k.exchange||'—'}</b></span>
         </div>
       </div>
-      <div class="actions">
-        <div style="text-align:right">
-          <div class="score">${k.score}</div>
-          ${k.url?`<a class="btn" href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}
-        </div>
+      <div>
+        <div class="score">${k.score}</div>
+        ${k.url?`<a class="btn" href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}
       </div>
-    </article>`).join('');
-  const table = `
-    <div class="scroll desk-only"><table><tr><th>Token</th><th>Score</th><th>24u</th><th>Liquiditeit</th>
-    <th>Risico</th><th>DEX</th><th></th></tr>
-    ${rows.map(k=>`<tr>
-      <td><b>${k.symbol}</b> <span class="dim">${k.chain||''}</span></td>
-      <td><b>${k.score}</b></td>
-      <td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</td>
-      <td>${money(k.liquidity_usd)}</td>
-      <td>${tag(k.risk)}</td>
-      <td class="dim">${k.exchange||'—'}</td>
-      <td>${k.url?`<a href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}</td>
-    </tr>`).join('')}</table></div>`;
-  box.innerHTML = `<div class="radar-list mobile-only">${cards}</div>${table}
-    <p class="empty">Live trending via DexScreener · ververst elke paar minuten · alleen papier</p>`;
+    </article>`).join('')}</div>`;
 }
 function paintWatch(wl){
   const rows = wl.items||[];
   document.getElementById('wl-st').textContent = rows.length ? rows.length+' tokens' : 'leeg';
-  document.getElementById('wl').innerHTML = rows.length ? `
-    <div class="scroll"><table><tr><th>Token</th><th>Score</th><th>24u</th><th>Risico</th></tr>
-    ${rows.map(k=>`<tr><td><b>${k.symbol}</b></td><td>${k.score??'—'}</td>
-      <td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</td>
-      <td>${tag(k.risk||'')}</td></tr>`).join('')}</table></div>`
-    : '<p class="empty">Watchlist is leeg. Er staat nog niets om te volgen.</p>';
+  document.getElementById('wl').innerHTML = rows.length ? `<div class="radar-list">${rows.map(k=>`
+    <article class="rcard"><div><div class="sym">${k.symbol}</div>
+      <div class="meta"><span>score <b>${k.score??'—'}</b></span>
+      <span>24u <b class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</b></span></div>
+      <div class="risk ${riskClass(k.risk||'')}">${k.risk||''}</div></div></article>`).join('')}</div>`
+    : '<p class="empty">Watchlist is leeg.</p>';
 }
 async function load(){
   get('/api/health', 4000).then(h=>{
-    document.getElementById('health').textContent = h.online ? 'online' : 'offline';
-    document.getElementById('health').className = h.online ? 'pill ok' : 'pill';
-  }).catch(()=>{ document.getElementById('health').textContent = 'geen verbinding'; });
+    document.getElementById('htext').textContent = h.online ? 'online' : 'offline';
+    document.getElementById('hdot').className = h.online ? 'dot on' : 'dot';
+  }).catch(()=>{ document.getElementById('htext').textContent = 'offline'; });
 
-  document.getElementById('rd-st').textContent = 'scannen…';
   get('/api/radar', 20000).then(paintRadar).catch(()=>{
-    document.getElementById('rd-st').textContent = 'traag';
+    document.getElementById('rd-st').textContent = 'fout';
+    document.getElementById('rd-updated').textContent = 'radar niet geladen';
     document.getElementById('radar').innerHTML = '<p class="empty">Radar reageert nog niet.</p>';
   });
 
@@ -427,6 +445,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        if ctype.startswith("text/html"):
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
         self.end_headers()
         self.wfile.write(body)
 
