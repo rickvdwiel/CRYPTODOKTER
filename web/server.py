@@ -75,9 +75,10 @@ def api_portfolio() -> dict:
     pf = Portfolio.load()
     prices = {}
     if pf.positions and _online():
+        addr_map = {sym: getattr(pos, "address", "") for sym, pos in pf.positions.items()}
         prices = _cached(
-            "fast-prices:" + ",".join(sorted(pf.positions)),
-            lambda: paper_bot.fast_prices(list(pf.positions)),
+            "fast-prices:" + ",".join(sorted(f"{k}:{v}" for k,v in addr_map.items())),
+            lambda: paper_bot.fast_prices(list(pf.positions), address_by_symbol=addr_map),
             ttl=30.0,
         ) or {}
         for sym, pos in pf.positions.items():
@@ -206,7 +207,7 @@ def api_hunt(dry_run: bool = False) -> dict:
         if dry_run:
             gekocht.append({"symbol": sym, "dry_run": True, "score": row["score"], "age_hours": age})
             continue
-        pos = pf.buy(sym, row["price_eur"], liquidity_usd=row["liquidity_usd"], note=note)
+        pos = pf.buy(sym, row["price_eur"], liquidity_usd=row["liquidity_usd"], note=note, address=row.get("address") or "")
         if pos:
             gekocht.append({
                 "symbol": sym,

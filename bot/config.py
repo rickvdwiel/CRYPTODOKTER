@@ -36,3 +36,6 @@ EUR_USD = 1.08
 # Snelheid
 HUNT_INTERVAL_SEC = 45
 TICK_INTERVAL_SEC = 45
+
+# Max toegestane mark-prijsafwijking t.o.v. entry (voorkomt verkeerde ticker-match)
+MAX_MARK_JUMP_PCT = 80.0

@@ -173,29 +173,59 @@ def hunt_candidates(limit: int = 16) -> list[dict]:
 
 
 
-def fast_prices(symbols: list[str]) -> dict:
-    """Snelle EUR-prijzen via DexScreener search (geen trage analyze_token)."""
-    prices = {}
-    for sym in symbols:
+def fast_prices(symbols: list[str] | None = None, address_by_symbol: dict | None = None) -> dict:
+    """Snelle EUR-prijzen via DexScreener **op contract-adres** (geen ticker-zoek).
+
+    Ticker-search matcht vaak een ander pair → fantasiewinst. Alleen address is eerlijk.
+    """
+    prices: dict = {}
+    address_by_symbol = address_by_symbol or {}
+    # Prefer addresses from open positions when available
+    if not address_by_symbol and symbols:
         try:
-            pairs = dexscreener.search_pairs(sym)
+            pf = Portfolio.load()
+            for sym in symbols:
+                pos = pf.positions.get(sym.upper())
+                if pos and getattr(pos, "address", ""):
+                    address_by_symbol[sym.upper()] = pos.address
+        except Exception:
+            pass
+    addrs = []
+    sym_for = {}
+    for sym, addr in address_by_symbol.items():
+        a = (addr or "").strip()
+        if not a:
+            continue
+        addrs.append(a)
+        sym_for[a.lower()] = sym.upper()
+    if not addrs:
+        return prices
+    # batch tokens endpoint
+    for i in range(0, len(addrs), 30):
+        chunk = addrs[i:i+30]
+        try:
+            url = "https://api.dexscreener.com/latest/dex/tokens/" + ",".join(chunk)
+            r = dexscreener._get(url, timeout=12.0)
+            r.raise_for_status()
+            pairs = r.json().get("pairs") or []
         except Exception:
             pairs = []
-        best = None
-        for p in pairs or []:
-            base = ((p.get("baseToken") or {}).get("symbol") or "").upper()
-            if base != sym.upper():
+        best: dict[str, tuple] = {}
+        for p in pairs:
+            info = dexscreener.pair_into(p)
+            addr = (info.get("address") or "").lower()
+            if addr not in sym_for:
                 continue
-            liq = float(((p.get("liquidity") or {}).get("usd")) or 0)
-            if best is None or liq > best[0]:
-                best = (liq, p)
-        if not best:
-            continue
-        usd = best[1].get("priceUsd")
-        try:
-            prices[sym.upper()] = float(usd) / config.EUR_USD
-        except (TypeError, ValueError):
-            pass
+            liq = float(info.get("liquidity_usd") or 0)
+            prev = best.get(addr)
+            if prev is None or liq > prev[0]:
+                best[addr] = (liq, info)
+        for addr, (_liq, info) in best.items():
+            usd = info.get("price_usd")
+            try:
+                prices[sym_for[addr]] = float(usd) / config.EUR_USD
+            except (TypeError, ValueError):
+                pass
     return prices
 
 
@@ -206,7 +236,8 @@ def cmd_hyper_cycle(dry_run: bool = False) -> dict:
         result["error"] = "offline"
         return result
     pf = Portfolio.load()
-    prices = fast_prices(list(pf.positions)) if pf.positions else {}
+    addr_map = {s: getattr(p, "address", "") for s, p in pf.positions.items()}
+    prices = fast_prices(list(pf.positions), address_by_symbol=addr_map) if pf.positions else {}
     # fill missing with entry
     for sym, pos in pf.positions.items():
         prices.setdefault(sym, pos.entry_price)
@@ -315,7 +346,7 @@ def cmd_scan(dry_run: bool = False) -> int:
         if dry_run:
             print(f"  ZOU KOPEN {sym:<12} score {total} age {age_s} @ €{price:.8f}")
             continue
-        pos = pf.buy(sym, price, liquidity_usd=liq, note=note)
+        pos = pf.buy(sym, price, liquidity_usd=liq, note=note, address=row.get("address") or "")
         if pos:
             gekocht += 1
             gekocht_rows.append(sym)

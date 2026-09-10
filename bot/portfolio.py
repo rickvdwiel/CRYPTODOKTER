@@ -44,6 +44,7 @@ class Position:
     opened_at: str
     high_price: float          # hoogste geziene prijs (voor trailing stop)
     note: str = ""
+    address: str = ""          # token contract — verplicht voor eerlijke mark-prijzen
 
     def value_eur(self, price: float) -> float:
         return self.qty * price
@@ -123,7 +124,8 @@ class Portfolio:
 
     # ---------- handelen ----------
     def buy(self, symbol: str, price_eur: float, budget_eur: Optional[float] = None,
-            liquidity_usd: Optional[float] = None, note: str = "") -> Optional[Position]:
+            liquidity_usd: Optional[float] = None, note: str = "",
+            address: str = "") -> Optional[Position]:
         """Virtuele koop. Geeft None als de regels het niet toestaan."""
         symbol = symbol.upper()
         if price_eur <= 0:
@@ -149,7 +151,8 @@ class Portfolio:
         self.fees_paid_eur += fee
         self.trades += 1
         pos = Position(symbol=symbol, qty=qty, entry_price=fill, cost_eur=budget,
-                       opened_at=_now(), high_price=fill, note=note)
+                       opened_at=_now(), high_price=fill, note=note,
+                       address=(address or "").lower())
         self.positions[symbol] = pos
         self._log("BUY", symbol, qty, fill, budget, fee, 0.0, note)
         self.log_equity({symbol: fill}, event="BUY", symbol=symbol)
@@ -187,6 +190,12 @@ class Portfolio:
             if not price or price <= 0:
                 continue
             pos = self.positions[symbol]
+            # Eerlijkheid: ticker-mismatches geven 100%+ jumps in seconden — negeren
+            if pos.entry_price > 0:
+                jump = abs(price - pos.entry_price) / pos.entry_price * 100.0
+                max_jump = float(getattr(config, "MAX_MARK_JUMP_PCT", 80.0))
+                if jump > max_jump:
+                    continue
             if price > pos.high_price:
                 pos.high_price = price
             pnl_pct = pos.pnl_pct(price)
