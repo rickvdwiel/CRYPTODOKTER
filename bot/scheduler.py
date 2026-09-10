@@ -30,7 +30,7 @@ LOG_FILE = DATA_DIR / "scheduler.log"
 
 # Intervalen (seconden)
 TICK_INTERVAL_SEC = 60 * 60          # elk uur exits/prijzen
-SCAN_INTERVAL_SEC = 24 * 60 * 60     # dagelijks nieuwe kandidaten
+SCAN_INTERVAL_SEC = 5 * 60           # early-hunt: elke 5 min nieuwe potent-coins
 
 
 def setup_logging(log_path: Optional[Path] = None) -> logging.Logger:

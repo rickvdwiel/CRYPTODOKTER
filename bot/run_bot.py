@@ -20,6 +20,8 @@ from bot.portfolio import STATE_FILE, Portfolio, print_summary
 from radar import config as radar_config
 from radar.run_radar import DISCLAIMER, _online, analyze_token
 from radar.sources import dexscreener
+from radar import signals
+import time
 
 PAPER_NOTICE = "📄 PAPIER-MODUS: alles is virtueel, er wordt geen echt geld verhandeld."
 
@@ -92,30 +94,114 @@ def cmd_tick() -> int:
     return 0
 
 
+def _age_hours(pair_created) -> float | None:
+    if not pair_created:
+        return None
+    try:
+        ms = float(pair_created)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, (time.time() * 1000.0 - ms) / 3_600_000.0)
+
+
+def _pairs_for_addresses(addrs: list[str]) -> list[dict]:
+    if not addrs:
+        return []
+    try:
+        url = "https://api.dexscreener.com/latest/dex/tokens/" + ",".join(addrs)
+        r = dexscreener._get(url, timeout=12.0)
+        r.raise_for_status()
+        return r.json().get("pairs") or []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _best_pair_per_token(pairs: list[dict]) -> dict[str, dict]:
+    best: dict[str, dict] = {}
+    for pair in pairs:
+        info = dexscreener.pair_into(pair)
+        addr = (info.get("address") or "").lower()
+        if not addr:
+            continue
+        prev = best.get(addr)
+        if prev is None or float(info.get("liquidity_usd") or 0) > float(prev.get("liquidity_usd") or 0):
+            best[addr] = info
+    return best
+
+
+def hunt_candidates(limit: int = 16) -> list[dict]:
+    """Snelle early-hunt: trending/nieuwe profiles + batch pairs + newness-score."""
+    profiles = dexscreener.trending_tokens(limit=max(limit, 20))
+    addrs = [p.get("tokenAddress") for p in profiles if p.get("tokenAddress")]
+    addrs = [a for a in addrs if a][:limit]
+    best = _best_pair_per_token(_pairs_for_addresses(addrs))
+    out = []
+    for addr in addrs:
+        info = best.get(addr.lower())
+        if not info:
+            continue
+        liq = float(info.get("liquidity_usd") or 0)
+        chg = info.get("change_h24_pct")
+        try:
+            chg_f = float(chg) if chg is not None else None
+        except (TypeError, ValueError):
+            chg_f = None
+        age = _age_hours(info.get("pair_created"))
+        sc = signals.score(0, 0, None, chg_f, liq, age_hours=age)
+        price_usd = info.get("price_usd")
+        try:
+            price_eur = float(price_usd) / config.EUR_USD if price_usd else None
+        except (TypeError, ValueError):
+            price_eur = None
+        out.append({
+            "symbol": (info.get("symbol") or "?")[:16],
+            "address": info.get("address") or addr,
+            "score": sc["total"],
+            "parts": sc["parts"],
+            "risk": signals.risk_label(liq),
+            "liquidity_usd": liq,
+            "change_h24": chg_f,
+            "age_hours": age,
+            "price_eur": price_eur,
+            "chain": info.get("chain", ""),
+            "url": info.get("url", ""),
+            "is_new": age is not None and age <= config.NEW_PAIR_MAX_AGE_HOURS,
+        })
+    # Nieuwe + hoge score eerst
+    out.sort(key=lambda r: (1 if r["is_new"] else 0, r["score"]), reverse=True)
+    return out
+
+
 def cmd_scan(dry_run: bool = False) -> int:
+    """Early-hunt: nieuwe potent-coins meteen paper-kopen (nooit live)."""
     if not _require_online():
         return 1
     pf = Portfolio.load()
     print(PAPER_NOTICE)
     print(DISCLAIMER + "\n")
-    print(">> radar-kandidaten ophalen (DexScreener trending)...")
-    profiles = dexscreener.trending_tokens(limit=radar_config.DEX_TOP_N)
-    addrs = [p.get("tokenAddress", "") for p in profiles if p.get("tokenAddress")]
-    if not addrs:
+    print(">> early-hunt: nieuwe/trending coins scannen (DexScreener, snel)...")
+    rows = hunt_candidates(limit=radar_config.DEX_TOP_N)
+    if not rows:
         print("Geen kandidaten van de radar (bron down?). Probeer later opnieuw.")
         return 0
 
     gekocht = 0
-    for addr in addrs[:radar_config.MAX_SCAN_TOKENS]:
+    gekocht_rows = []
+    for row in rows:
         if len(pf.positions) >= config.MAX_POSITIONS:
             print("Maximum aantal posities bereikt; stoppen met kopen.")
             break
-        info = analyze_token(addr, show_x=False)
-        sym = info.get("symbol", addr)[:16]
-        total = info["score"]["total"]
-        liq = _liquidity(info) or 0.0
-        price = _price_eur(info)
+        sym = row["symbol"]
+        total = row["score"]
+        liq = row["liquidity_usd"]
+        price = row["price_eur"]
+        age = row["age_hours"]
+        age_s = f"{age:.1f}u" if age is not None else "?"
+        risk = row["risk"] or ""
 
+        if "RUG" in risk:
+            print(f"  overslaan {sym:<12} {risk}")
+            continue
         if total < config.MIN_SCORE:
             print(f"  overslaan {sym:<12} score {total} < {config.MIN_SCORE}")
             continue
@@ -128,20 +214,26 @@ def cmd_scan(dry_run: bool = False) -> int:
         if sym in pf.positions:
             print(f"  overslaan {sym:<12} al in portefeuille")
             continue
-        if dry_run:
-            print(f"  ZOU KOPEN {sym:<12} score {total} @ €{price:.8f}")
+        # Prioriteit: nieuwe coins; oudere alleen als score hard genoeg
+        if not row["is_new"] and total < (config.MIN_SCORE + 8):
+            print(f"  overslaan {sym:<12} niet nieuw ({age_s}) en score {total} matig")
             continue
-        pos = pf.buy(sym, price, liquidity_usd=liq, note=f"radar score {total}")
+        note = f"early-hunt score {total} age {age_s}"
+        if dry_run:
+            print(f"  ZOU KOPEN {sym:<12} score {total} age {age_s} @ €{price:.8f}")
+            continue
+        pos = pf.buy(sym, price, liquidity_usd=liq, note=note)
         if pos:
             gekocht += 1
-            print(f"  GEKOCHT (papier) {sym:<12} score {total} @ €{pos.entry_price:.8f} "
+            gekocht_rows.append(sym)
+            print(f"  GEKOCHT (papier) {sym:<12} score {total} age {age_s} @ €{pos.entry_price:.8f} "
                   f"voor €{pos.cost_eur:.2f}")
         else:
             print(f"  kon {sym} niet kopen (kas/limiet)")
 
     if not dry_run:
         pf.save()
-    print(f"\n{gekocht} nieuwe papieren positie(s).")
+    print(f"\n{gekocht} nieuwe papieren positie(s): {', '.join(gekocht_rows) or '—'}.")
     print()
     print_summary(pf)
     return 0

@@ -14,16 +14,34 @@ from __future__ import annotations
 from radar import config
 
 
+def newness(age_hours: float | None) -> float:
+    """Extra score voor gloednieuwe pairs (max 20). Ouder = minder."""
+    if age_hours is None:
+        return 0.0
+    if age_hours < 0:
+        return 0.0
+    if age_hours <= 6:
+        return 20.0
+    if age_hours <= 24:
+        return 12.0
+    if age_hours <= 48:
+        return 6.0
+    return 0.0
+
+
 def score(x_count: int, news_total: int, exch_change: float | None,
-          dex_change: float | None, liquidity_usd: float) -> dict:
+          dex_change: float | None, liquidity_usd: float,
+          age_hours: float | None = None) -> dict:
     parts = {
         "x": min(30.0, x_count * 6.0),
         "news": min(15.0, news_total * 5.0),
         "mom": max(0.0, min(35.0, exch_change or 0.0)),
         "dex_pump": max(0.0, min(10.0, (dex_change or 0.0) / 5.0)),
         "lev": max(0.0, min(10.0, liquidity_usd / 5000.0)),
+        "new": newness(age_hours),
     }
-    total = round(sum(parts.values()), 1)
+    # Cap total at 100 so UI stays consistent
+    total = round(min(100.0, sum(parts.values())), 1)
     return {"total": total, "parts": {k: round(v, 1) for k, v in parts.items()}}
 
 

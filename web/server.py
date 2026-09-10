@@ -23,6 +23,9 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from bot.portfolio import Portfolio
+from bot import config as bot_config
+from bot import run_bot as paper_bot
+import time
 from radar import config as radar_config
 from radar import signals
 from radar.run_radar import _online, analyze_token
@@ -141,7 +144,14 @@ def api_radar(limit: int = 8) -> dict:
                 chg_f = float(chg) if chg is not None else None
             except (TypeError, ValueError):
                 chg_f = None
-            sc = signals.score(0, 0, None, chg_f, liq)
+            age = None
+            pc = info.get("pair_created")
+            if pc:
+                try:
+                    age = max(0.0, (time.time() * 1000.0 - float(pc)) / 3_600_000.0)
+                except (TypeError, ValueError):
+                    age = None
+            sc = signals.score(0, 0, None, chg_f, liq, age_hours=age)
             out.append({
                 "symbol": info.get("symbol") or "?",
                 "score": sc["total"],
@@ -154,6 +164,8 @@ def api_radar(limit: int = 8) -> dict:
                 "chain": info.get("chain", ""),
                 "url": info.get("url", ""),
                 "exchange": info.get("dex", ""),
+                "age_hours": None if age is None else round(age, 2),
+                "is_new": bool(age is not None and age <= bot_config.NEW_PAIR_MAX_AGE_HOURS),
                 "x_count": 0,
                 "news": 0,
             })
@@ -161,6 +173,66 @@ def api_radar(limit: int = 8) -> dict:
         return out[:limit]
 
     return {"online": True, "kandidaten": _cached(f"radar-fast:{limit}", work, ttl=120.0)}
+
+
+def api_hunt(dry_run: bool = False) -> dict:
+    """Early-hunt: koop meteen paper als nieuwe coin potentie heeft. Nooit live."""
+    if not _online():
+        return {"online": False, "gekocht": [], "melding": "offline"}
+    pf = Portfolio.load()
+    before = set(pf.positions)
+    rows = paper_bot.hunt_candidates(limit=16)
+    gekocht = []
+    skipped = []
+    for row in rows:
+        if len(pf.positions) >= bot_config.MAX_POSITIONS:
+            skipped.append({"symbol": row["symbol"], "reason": "max posities"})
+            break
+        sym = row["symbol"]
+        risk = row.get("risk") or ""
+        if "RUG" in risk:
+            skipped.append({"symbol": sym, "reason": risk}); continue
+        if row["score"] < bot_config.MIN_SCORE:
+            skipped.append({"symbol": sym, "reason": f"score {row['score']}"}); continue
+        if row["liquidity_usd"] < bot_config.MIN_LIQUIDITY_USD:
+            skipped.append({"symbol": sym, "reason": "liq"}); continue
+        if not row.get("price_eur"):
+            skipped.append({"symbol": sym, "reason": "geen prijs"}); continue
+        if sym in pf.positions:
+            skipped.append({"symbol": sym, "reason": "al binnen"}); continue
+        if not row.get("is_new") and row["score"] < (bot_config.MIN_SCORE + 8):
+            skipped.append({"symbol": sym, "reason": "niet nieuw"}); continue
+        age = row.get("age_hours")
+        age_s = f"{age:.1f}u" if age is not None else "?"
+        note = f"early-hunt score {row['score']} age {age_s}"
+        if dry_run:
+            gekocht.append({"symbol": sym, "dry_run": True, "score": row["score"], "age_hours": age})
+            continue
+        pos = pf.buy(sym, row["price_eur"], liquidity_usd=row["liquidity_usd"], note=note)
+        if pos:
+            gekocht.append({
+                "symbol": sym,
+                "score": row["score"],
+                "age_hours": age,
+                "cost_eur": pos.cost_eur,
+                "entry": pos.entry_price,
+                "note": note,
+            })
+        else:
+            skipped.append({"symbol": sym, "reason": "kas/limiet"})
+    if not dry_run:
+        pf.save()
+    s = pf.summary({})
+    return {
+        "online": True,
+        "paper_only": True,
+        "gekocht": gekocht,
+        "skipped": skipped[:12],
+        "open_posities": s.get("open_posities", len(pf.positions)),
+        "cash_eur": s.get("cash_eur"),
+        "equity_eur": s.get("equity_eur"),
+        "nieuw": sorted(set(pf.positions) - before),
+    }
 
 
 def api_watchlist() -> dict:
@@ -421,13 +493,16 @@ function paperDecision(k){
   const score = Number(k.score)||0;
   const liq = Number(k.liquidity_usd)||0;
   const risk = k.risk||'';
-  if(risk.includes('RUG') || risk.includes('onbekend')) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · risico ${esc(risk)}`};
+  const age = k.age_hours;
+  const isNew = !!k.is_new || (age!=null && age <= 36);
+  if(risk.includes('RUG')) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · ${esc(risk)}`};
+  if(risk.includes('onbekend') || liq < 15000) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · liq te dun / onbekend`};
   if(score < 18) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · score ${esc(score)} te laag`};
-  if(liq < 20000) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · liq te dun`};
+  if(!isNew && score < 26) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · niet nieuw genoeg`};
   if((portfolioSnap.open_posities||0) >= 2) return {cls:'warn', msg:`hold · max 2 paper-posities`};
   if((portfolioSnap.cash_eur||0) < 5) return {cls:'warn', msg:`hold · kas ${eur(portfolioSnap.cash_eur)} te klein`};
-  // Demo/paper: no live orders — show would-be paper signal honestly
-  return {cls:'ok', msg:`paper-signaal <b>${esc(k.symbol)}</b> · geen echte order · dry-run`};
+  const ageTxt = age!=null ? ` · ${Number(age).toFixed(1)}u oud` : '';
+  return {cls:'buy', buy:true, msg:`PAPER BUY <b>${esc(k.symbol)}</b> score ${esc(score)}${ageTxt} · geen live order`};
 }
 function runOpsCycle(){
   if(opsTimer){ clearTimeout(opsTimer); opsTimer=null; }
@@ -582,7 +657,7 @@ function paintRadar(rd){
         <div class="meta">
           <span>24u <b class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</b></span>
           <span>liq <b>${money(k.liquidity_usd)}</b></span>
-          <span>dex <b>${esc(k.exchange||'—')}</b></span>
+          <span>${k.is_new?'<b class="up">NEW</b> · ':''}${k.age_hours!=null?Number(k.age_hours).toFixed(1)+'u':'dex <b>'+esc(k.exchange||'—')+'</b>'}</span>
         </div>
       </div>
       <div>
@@ -625,6 +700,18 @@ async function load(){
     document.getElementById('wl-st').textContent = 'fout';
     document.getElementById('wl').innerHTML = '<p class="empty">Watchlist laadde niet.</p>';
   });
+
+  get('/api/hunt', 25000).then(h=>{
+    if(!h || !h.gekocht) return;
+    (h.gekocht||[]).forEach(g=>{
+      pushFeed(`PAPER BUY <b>${esc(g.symbol)}</b> · €${Number(g.cost_eur||0).toFixed(2)} · score ${esc(g.score)}`, 'buy');
+    });
+    if((h.gekocht||[]).length){
+      const st=document.getElementById('ops-state');
+      if(st) st.textContent = 'paper buy';
+      get('/api/portfolio', 8000).then(paintPortfolio).catch(()=>{});
+    }
+  }).catch(()=>{});
 }
 document.getElementById('blips').addEventListener('click', e=>{
   const b = e.target.closest('.blip');
@@ -656,6 +743,9 @@ document.getElementById('radar').addEventListener('keydown', e=>{
 });
 load();
 setInterval(load, 60000);
+setInterval(()=>get('/api/hunt', 25000).then(h=>{
+  if((h.gekocht||[]).length){ load(); }
+}).catch(()=>{}), 5*60*1000);
 </script></body></html>"""
 
 
@@ -690,6 +780,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(api_radar())
             elif path == "/api/watchlist":
                 self._json(api_watchlist())
+            elif path == "/api/hunt":
+                self._json(api_hunt(dry_run=False))
             elif path == "/api/health":
                 self._json({"ok": True, "online": _online()})
             else:

@@ -4,6 +4,7 @@ Alles virtueel: er gaan NOOIT echte orders naar een exchange. Alleen publieke
 marktdata in, papieren portefeuille uit.
 
 YOLO-paper (sep 2026): kleiner budget, minder posities, grotere size, snellere exits.
+Early-hunt: nieuwe coins met potentie meteen paper-kopen.
 """
 from __future__ import annotations
 
@@ -27,6 +28,13 @@ TRAILING_STOP_PCT = -15.0
 MAX_HOLD_DAYS = 7
 
 # Auto-koop filter (radar-signaal) — rug-cage blijft hard
-MIN_SCORE = 35.0
-MIN_LIQUIDITY_USD = 25_000.0
+# Afgestemd op snelle Dex-score (zonder X/news vaak ~10–30)
+MIN_SCORE = 18.0
+MIN_LIQUIDITY_USD = 15_000.0
+# Nieuwe pair = prioriteit (uren sinds pairCreatedAt)
+NEW_PAIR_MAX_AGE_HOURS = 36.0
+# Boost-score voor brand-new (zie signals.newness)
 EUR_USD = 1.08
+
+# Hunt-interval (scheduler): elke 5 min nieuwe coins checken
+HUNT_INTERVAL_SEC = 5 * 60
