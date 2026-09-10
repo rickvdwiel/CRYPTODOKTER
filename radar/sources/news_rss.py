@@ -89,6 +89,10 @@ TREND_FEEDS: dict[str, str] = {
     "finextra-blockchain": "https://www.finextra.com/rss/blogs.aspx?topic=blockchain",
     "arbitrum": "https://arbitrumfoundation.medium.com/feed",
     "vitalik": "https://vitalik.eth.limo/feed.xml",
+    "hackernoon-crypto": "https://hackernoon.com/tagged/cryptocurrency/feed",
+    "cryptoadventure": "https://cryptoadventure.com/feed/",
+    "cryptoeconomy": "https://crypto-economy.com/feed/",
+    "wu-blockchain": "https://wublockchain.substack.com/feed",
 }
 
 

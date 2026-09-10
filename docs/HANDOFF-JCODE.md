@@ -245,3 +245,12 @@ cryptodokter/
   captainaltcoin (flaky), categorie-feeds van al aanwezige sites, cryptoinside.nl.
 - tests/test_news_watchers.py: asserts crypto-gids/coinpaper/vitalik (≥65).
 - search() contract ongewijzigd.
+
+[CryptoDokter Newsbronnen, 2026-09-10] TREND_FEEDS 66 → 70 (+4):
+- Intl: hackernoon-crypto, cryptoadventure, cryptoeconomy, wu-blockchain.
+- Alleen stabiel ElementTree-parsebaar (project-UA). Fail-open blijft.
+- Eerdere kandidaten met flaky CDATA overgeslagen (dlnews, cryptopolitan, nulltx,
+  captainaltcoin, a16zcrypto, optimism, 99bitcoins, nftnow, mit-tech-blockchain).
+- Geen nieuwe NL. cryptoinside.nl niet gebruikt.
+- tests: asserts hackernoon-crypto/cryptoadventure/wu-blockchain (≥69).
+- search() contract ongewijzigd.

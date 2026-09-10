@@ -62,7 +62,10 @@ class TestTrendWatchers(unittest.TestCase):
         self.assertIn("crypto-gids", names)
         self.assertIn("coinpaper", names)
         self.assertIn("vitalik", names)
-        self.assertGreaterEqual(len(feeds), 65)
+        self.assertIn("hackernoon-crypto", names)
+        self.assertIn("cryptoadventure", names)
+        self.assertIn("wu-blockchain", names)
+        self.assertGreaterEqual(len(feeds), 69)
         self.assertTrue(all(f["url"].startswith("http") for f in feeds))
 
 
