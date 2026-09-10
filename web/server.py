@@ -22,10 +22,9 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
-from bot.portfolio import Portfolio
+from bot.portfolio import Portfolio, TRADES_FILE, EQUITY_FILE
 from bot import config as bot_config
 from bot import run_bot as paper_bot
-import time
 from radar import config as radar_config
 from radar import signals
 from radar.run_radar import _online, analyze_token
@@ -34,7 +33,7 @@ from radar.sources import dexscreener
 ROOT = Path(__file__).resolve().parent
 WATCHLIST = ROOT.parent / "data" / "watchlist.txt"
 
-CACHE_TTL = 300.0  # seconden: hou de gratis bronnen te vriend
+CACHE_TTL = 45.0  # hyper: snellere cache, bronnen niet te hard slaan
 _cache: dict = {}
 _lock = threading.Lock()
 
@@ -76,14 +75,13 @@ def api_portfolio() -> dict:
     pf = Portfolio.load()
     prices = {}
     if pf.positions and _online():
-        for sym in list(pf.positions):
-            info = _cached(f"price:{sym}", lambda s=sym: analyze_token(s, s, show_x=False))
-            dex = info.get("dex") or {}
-            if dex.get("price_usd"):
-                try:
-                    prices[sym] = float(dex["price_usd"]) / 1.08
-                except (TypeError, ValueError):
-                    pass
+        prices = _cached(
+            "fast-prices:" + ",".join(sorted(pf.positions)),
+            lambda: paper_bot.fast_prices(list(pf.positions)),
+            ttl=30.0,
+        ) or {}
+        for sym, pos in pf.positions.items():
+            prices.setdefault(sym, pos.entry_price)
     s = pf.summary(prices)
     s["posities"] = [{
         "symbol": sym,
@@ -235,6 +233,50 @@ def api_hunt(dry_run: bool = False) -> dict:
     }
 
 
+
+def api_chart() -> dict:
+    """Equity-curve + buy/sell markers voor de dashboard-grafiek."""
+    points = []
+    if EQUITY_FILE.exists():
+        try:
+            for line in EQUITY_FILE.read_text(encoding="utf-8").splitlines()[-400:]:
+                if not line.strip():
+                    continue
+                points.append(json.loads(line))
+        except (OSError, json.JSONDecodeError):
+            points = []
+    markers = []
+    if TRADES_FILE.exists():
+        import csv
+        try:
+            with TRADES_FILE.open(encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    kant = (row.get("kant") or "").upper()
+                    if kant not in ("BUY", "SELL"):
+                        continue
+                    markers.append({
+                        "t": row.get("tijd"),
+                        "side": kant,
+                        "symbol": row.get("symbool"),
+                        "amount": float(row.get("bedrag_eur") or 0),
+                        "pnl": float(row.get("pnl_eur") or 0),
+                        "reason": row.get("reden") or "",
+                    })
+        except OSError:
+            markers = []
+    # seed point if empty
+    pf = Portfolio.load()
+    if not points:
+        eq = pf.equity_eur({s: p.entry_price for s, p in pf.positions.items()})
+        points = [{"t": "start", "equity": eq, "cash": pf.cash_eur, "event": "seed", "symbol": "", "open": len(pf.positions)}]
+    return {"points": points, "markers": markers[-200:], "paper_only": True}
+
+
+def api_hyper() -> dict:
+    """Draai één hyper-cycle (exits + rotate + hunt). Nooit live."""
+    return paper_bot.cmd_hyper_cycle(dry_run=False)
+
+
 def api_watchlist() -> dict:
     if not WATCHLIST.exists():
         return {"items": []}
@@ -381,6 +423,12 @@ INDEX_HTML = """<!doctype html>
  .ops-bar > i{display:block;height:100%;width:30%;background:linear-gradient(90deg,transparent,var(--accent),transparent);
   animation:bar 2.2s linear infinite}
  @keyframes bar{from{transform:translateX(-120%)}to{transform:translateX(400%)}}
+ .chart-wrap{position:relative;height:200px;margin-top:4px}
+ .chart-wrap canvas{width:100%;height:200px;display:block}
+ .chart-legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:8px;flex-wrap:wrap}
+ .chart-legend i{display:inline-block;width:8px;height:8px;margin-right:4px}
+ .chart-legend .buy i{background:var(--up)} .chart-legend .sell i{background:var(--down)}
+ .chart-legend .eq i{background:var(--accent)}
  footer{padding:8px var(--padr) 20px var(--pad);color:var(--dim);font-size:11px;max-width:720px;margin:0 auto}
  @media (prefers-reduced-motion: reduce){
   .sweep,.blip,.skel,.botops::before,.ops-live i,.ops-bar > i,.feed-line{animation:none !important}
@@ -424,6 +472,15 @@ INDEX_HTML = """<!doctype html>
     </div>
     <div class="feed" id="ops-feed"></div>
     <div class="ops-bar" aria-hidden="true"><i></i></div>
+  </section>
+  <section class="card" id="chart-card">
+    <div class="head"><h2>Hyper trackrecord</h2><span class="status" id="ch-st">laden</span></div>
+    <div class="chart-wrap"><canvas id="eq-chart" width="680" height="200"></canvas></div>
+    <div class="chart-legend">
+      <span class="eq"><i></i>equity</span>
+      <span class="buy"><i></i>buy</span>
+      <span class="sell"><i></i>sell</span>
+    </div>
   </section>
   <section class="card" id="radar-card">
     <div class="head"><h2>Trending</h2><span class="status" id="rd-st">scannen…</span></div>
@@ -679,11 +736,79 @@ function paintWatch(wl){
       <div class="risk ${riskClass(k.risk||'')}">${k.risk||''}</div></div></article>`).join('')}</div>`
     : '<p class="empty">Watchlist is leeg.</p>';
 }
+
+function paintChart(data){
+  const st = document.getElementById('ch-st');
+  const canvas = document.getElementById('eq-chart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 680;
+  const cssH = 200;
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+  const pts = (data.points||[]).filter(p=>p && p.equity!=null);
+  const marks = data.markers||[];
+  st.textContent = marks.filter(m=>m.side==='BUY').length+' buys · '+marks.filter(m=>m.side==='SELL').length+' sells';
+  if(!pts.length){
+    ctx.fillStyle = '#8b98a8';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('Nog geen equity-punten — hyper-cycle start zo.', 12, 100);
+    return;
+  }
+  const vals = pts.map(p=>Number(p.equity));
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if(min===max){ min-=1; max+=1; }
+  const padL=36, padR=10, padT=14, padB=22;
+  const W=cssW-padL-padR, H=cssH-padT-padB;
+  const xAt = i => padL + (pts.length===1? W/2 : i/(pts.length-1)*W);
+  const yAt = v => padT + (1-((v-min)/(max-min)))*H;
+  // grid
+  ctx.strokeStyle='#1c2633'; ctx.lineWidth=1;
+  for(let g=0;g<4;g++){
+    const y=padT + H*g/3;
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+W,y); ctx.stroke();
+  }
+  // equity line
+  ctx.beginPath();
+  pts.forEach((p,i)=>{ const x=xAt(i), y=yAt(Number(p.equity)); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.strokeStyle='#5ce1ff'; ctx.lineWidth=2; ctx.stroke();
+  // markers mapped by nearest time index
+  function nearestIdx(t){
+    if(!t || t==='start') return 0;
+    let best=0, bd=1e18;
+    pts.forEach((p,i)=>{ const d=Math.abs(Date.parse(p.t||0)-Date.parse(t)); if(!isNaN(d)&&d<bd){bd=d;best=i;} });
+    return best;
+  }
+  marks.forEach(m=>{
+    const i = nearestIdx(m.t);
+    const x = xAt(Math.min(i, pts.length-1));
+    const y = yAt(Number(pts[Math.min(i,pts.length-1)].equity));
+    ctx.beginPath();
+    if(m.side==='BUY'){
+      ctx.fillStyle='#3dd68c';
+      ctx.moveTo(x,y-7); ctx.lineTo(x-5,y+3); ctx.lineTo(x+5,y+3);
+    } else {
+      ctx.fillStyle='#ff6b6b';
+      ctx.moveTo(x,y+7); ctx.lineTo(x-5,y-3); ctx.lineTo(x+5,y-3);
+    }
+    ctx.closePath(); ctx.fill();
+  });
+  // y labels
+  ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
+  ctx.fillText('€'+max.toFixed(0), 4, padT+10);
+  ctx.fillText('€'+min.toFixed(0), 4, padT+H);
+}
+
 async function load(){
   get('/api/health', 4000).then(h=>{
     document.getElementById('htext').textContent = h.online ? 'online' : 'offline';
     document.getElementById('hdot').className = h.online ? 'dot on' : 'dot';
   }).catch(()=>{ document.getElementById('htext').textContent = 'offline'; });
+
+  get('/api/chart', 8000).then(paintChart).catch(()=>{ document.getElementById('ch-st').textContent='fout'; });
 
   get('/api/radar', 20000).then(paintRadar).catch(()=>{
     document.getElementById('rd-st').textContent = 'fout';
@@ -742,7 +867,17 @@ document.getElementById('radar').addEventListener('keydown', e=>{
   selectCandidate(Number(c.dataset.i));
 });
 load();
-setInterval(load, 60000);
+setInterval(load, 30000);
+setInterval(()=>get('/api/hyper', 40000).then(h=>{
+  if(!h) return;
+  (h.exits||[]).forEach(e=>pushFeed(`SELL <b>${esc(e.symbol)}</b> · ${esc(e.reason)} · €${Number(e.pnl||0).toFixed(2)}`, 'sell'));
+  (h.rotates||[]).forEach(r=>pushFeed(`ROTATE <b>${esc(r.sold)}</b> → <b>${esc(r.to)}</b>`, 'warn'));
+  (h.buys||[]).forEach(s=>pushFeed(`PAPER BUY <b>${esc(s)}</b>`, 'buy'));
+  if((h.exits||[]).length||(h.buys||[]).length||(h.rotates||[]).length){
+    get('/api/chart',8000).then(paintChart).catch(()=>{});
+    get('/api/portfolio',8000).then(paintPortfolio).catch(()=>{});
+  }
+}).catch(()=>{}), 45000);
 setInterval(()=>get('/api/hunt', 25000).then(h=>{
   if((h.gekocht||[]).length){ load(); }
 }).catch(()=>{}), 5*60*1000);
@@ -782,6 +917,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(api_watchlist())
             elif path == "/api/hunt":
                 self._json(api_hunt(dry_run=False))
+            elif path == "/api/chart":
+                self._json(api_chart())
+            elif path == "/api/hyper":
+                self._json(api_hyper())
             elif path == "/api/health":
                 self._json({"ok": True, "online": _online()})
             else:
@@ -792,8 +931,23 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": str(e)}, 500)
 
 
+
+def _hyper_loop():
+    """Achtergrond: hyper-cycle zo snel als redelijk t.o.v. Dex-limieten. Alleen papier."""
+    while True:
+        try:
+            if _online():
+                paper_bot.cmd_hyper_cycle(dry_run=False)
+        except Exception as exc:  # noqa: BLE001
+            sys.stderr.write(f"hyper-loop: {exc}\n")
+        time.sleep(max(30, int(getattr(bot_config, "HUNT_INTERVAL_SEC", 45))))
+
+
 def serve(host: str = "127.0.0.1", port: int = 8000) -> int:
     httpd = ThreadingHTTPServer((host, port), Handler)
+    t = threading.Thread(target=_hyper_loop, name="hyper-paper", daemon=True)
+    t.start()
+    sys.stderr.write("  hyper-paper loop gestart (alleen virtueel)\n")
     print(f">> CryptoDokter dashboard: http://{host}:{port}")
     print("   (alleen lezen + papier; stoppen met Ctrl-C)")
     try:

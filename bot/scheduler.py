@@ -29,8 +29,8 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 LOG_FILE = DATA_DIR / "scheduler.log"
 
 # Intervalen (seconden)
-TICK_INTERVAL_SEC = 60 * 60          # elk uur exits/prijzen
-SCAN_INTERVAL_SEC = 5 * 60           # early-hunt: elke 5 min nieuwe potent-coins
+TICK_INTERVAL_SEC = 45               # hyper: elke 45s exits/prijzen
+SCAN_INTERVAL_SEC = 45               # hyper-hunt: elke 45s
 
 
 def setup_logging(log_path: Optional[Path] = None) -> logging.Logger:
@@ -64,6 +64,19 @@ def setup_logging(log_path: Optional[Path] = None) -> logging.Logger:
     sh.setFormatter(fmt)
     logger.addHandler(sh)
     return logger
+
+
+def run_hyper(logger: Optional[logging.Logger] = None, dry_run: bool = False) -> int:
+    """Hyper-cycle: snelle exits + rotatie + hunt (papier)."""
+    log = logger or setup_logging()
+    log.info("Start hyper-cycle (papier, dry_run=%s)", dry_run)
+    try:
+        result = run_bot.cmd_hyper_cycle(dry_run=dry_run)
+        log.info("Hyper klaar: %s", result)
+        return 0 if not result.get("error") else 1
+    except Exception as exc:
+        log.exception("Hyper mislukt: %s", exc)
+        return 1
 
 
 def run_tick(logger: Optional[logging.Logger] = None) -> int:
@@ -116,9 +129,13 @@ def loop(
         while True:
             now = time.time()
             if now - last_tick >= tick_every:
-                run_tick(log)
+                # hyper: één cycle dekt tick+hunt
+                if hasattr(run_bot, "cmd_hyper_cycle"):
+                    run_hyper(log, dry_run=dry_run_scan)
+                else:
+                    run_tick(log)
                 last_tick = now
-            if now - last_scan >= scan_every:
+            if now - last_scan >= scan_every and not hasattr(run_bot, "cmd_hyper_cycle"):
                 run_scan(log, dry_run=dry_run_scan)
                 last_scan = now
             time.sleep(min(30, tick_every, scan_every))

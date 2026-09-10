@@ -172,6 +172,99 @@ def hunt_candidates(limit: int = 16) -> list[dict]:
     return out
 
 
+
+def fast_prices(symbols: list[str]) -> dict:
+    """Snelle EUR-prijzen via DexScreener search (geen trage analyze_token)."""
+    prices = {}
+    for sym in symbols:
+        try:
+            pairs = dexscreener.search_pairs(sym)
+        except Exception:
+            pairs = []
+        best = None
+        for p in pairs or []:
+            base = ((p.get("baseToken") or {}).get("symbol") or "").upper()
+            if base != sym.upper():
+                continue
+            liq = float(((p.get("liquidity") or {}).get("usd")) or 0)
+            if best is None or liq > best[0]:
+                best = (liq, p)
+        if not best:
+            continue
+        usd = best[1].get("priceUsd")
+        try:
+            prices[sym.upper()] = float(usd) / config.EUR_USD
+        except (TypeError, ValueError):
+            pass
+    return prices
+
+
+def cmd_hyper_cycle(dry_run: bool = False) -> dict:
+    """Eén hyper-tick: snelle exits, rotatie naar betere new coins, hunt. Alleen papier."""
+    result = {"exits": [], "rotates": [], "buys": [], "paper_only": True}
+    if not _online():
+        result["error"] = "offline"
+        return result
+    pf = Portfolio.load()
+    prices = fast_prices(list(pf.positions)) if pf.positions else {}
+    # fill missing with entry
+    for sym, pos in pf.positions.items():
+        prices.setdefault(sym, pos.entry_price)
+
+    exits = pf.check_exits(prices)
+    for sym, reason, pnl in exits:
+        result["exits"].append({"symbol": sym, "reason": reason, "pnl": pnl})
+        print(f"VERKOCHT (papier): {sym} — {reason} → €{(pnl or 0):+.2f}")
+
+    # Rotatie: verkoop zwakste (laagste pnl) als er een veel betere nieuwe kandidaat is
+    rows = hunt_candidates(limit=16)
+    result["candidates"] = len(rows)
+    if pf.positions and rows and not dry_run:
+        scored = []
+        for sym, pos in pf.positions.items():
+            px = prices.get(sym, pos.entry_price)
+            scored.append((pos.pnl_pct(px), sym, px))
+        scored.sort()  # weakest first
+        weakest_pnl, weak_sym, weak_px = scored[0]
+        best = None
+        for row in rows:
+            if row["symbol"].upper() in pf.positions:
+                continue
+            if "RUG" in (row.get("risk") or ""):
+                continue
+            if row["score"] < config.MIN_SCORE or row["liquidity_usd"] < config.MIN_LIQUIDITY_USD:
+                continue
+            if not row.get("price_eur"):
+                continue
+            if not row.get("is_new") and row["score"] < config.MIN_SCORE + 8:
+                continue
+            best = row
+            break
+        if best and (weakest_pnl < 2.0) and best["score"] >= (config.MIN_SCORE + config.ROTATE_SCORE_EDGE):
+            # free a slot
+            if len(pf.positions) >= config.MAX_POSITIONS or pf.cash_eur < config.MIN_POSITION_EUR:
+                pnl = pf.sell(weak_sym, weak_px, reason=f"rotate→{best['symbol']} score {best['score']}")
+                result["rotates"].append({"sold": weak_sym, "pnl": pnl, "to": best["symbol"]})
+                print(f"ROTATE (papier): {weak_sym} → kas voor {best['symbol']}")
+
+    if not dry_run:
+        pf.save()
+        pf.log_equity(prices, event="tick")
+
+    # Hunt fills empty cash/slots
+    before = set(Portfolio.load().positions)
+    if not dry_run:
+        cmd_scan(dry_run=False)
+    after_pf = Portfolio.load()
+    result["buys"] = sorted(set(after_pf.positions) - before)
+    result["cash_eur"] = after_pf.cash_eur
+    result["open"] = len(after_pf.positions)
+    result["equity_eur"] = after_pf.equity_eur(
+        {s: p.entry_price for s, p in after_pf.positions.items()}
+    )
+    return result
+
+
 def cmd_scan(dry_run: bool = False) -> int:
     """Early-hunt: nieuwe potent-coins meteen paper-kopen (nooit live)."""
     if not _require_online():
@@ -297,10 +390,14 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--amount", type=float, help="bedrag in EUR bij --buy")
     ap.add_argument("--sell", metavar="SYMBOOL", help="handmatig virtueel verkopen")
     ap.add_argument("--reset", action="store_true", help="portefeuille resetten")
+    ap.add_argument("--hyper", action="store_true", help="één hyper-cycle (tick+rotate+hunt)")
     args = ap.parse_args(argv)
 
     if args.reset:
         return cmd_reset()
+    if args.hyper:
+        cmd_hyper_cycle(dry_run=args.dry_run)
+        return 0
     if args.buy:
         return cmd_buy(args.buy, args.amount)
     if args.sell:

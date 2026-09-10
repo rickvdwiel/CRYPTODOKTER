@@ -21,6 +21,7 @@ from bot import config
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 STATE_FILE = DATA_DIR / "paper_portfolio.json"
 TRADES_FILE = DATA_DIR / "paper_trades.csv"
+EQUITY_FILE = DATA_DIR / "equity_curve.jsonl"
 
 
 def _now() -> str:
@@ -98,6 +99,21 @@ class Portfolio:
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         return path
 
+    def log_equity(self, prices: Optional[dict] = None, event: str = "mark", symbol: str = "") -> None:
+        """Append equity snapshot for the dashboard chart."""
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        eq = self.equity_eur(prices or {})
+        row = {
+            "t": _now(),
+            "equity": eq,
+            "cash": round(self.cash_eur, 4),
+            "event": event,
+            "symbol": symbol,
+            "open": len(self.positions),
+        }
+        with EQUITY_FILE.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
     # ---------- kosten ----------
     @staticmethod
     def slippage_pct(liquidity_usd: Optional[float]) -> float:
@@ -136,6 +152,7 @@ class Portfolio:
                        opened_at=_now(), high_price=fill, note=note)
         self.positions[symbol] = pos
         self._log("BUY", symbol, qty, fill, budget, fee, 0.0, note)
+        self.log_equity({symbol: fill}, event="BUY", symbol=symbol)
         return pos
 
     def sell(self, symbol: str, price_eur: float, reason: str = "manual",
@@ -157,6 +174,7 @@ class Portfolio:
         self.trades += 1
         del self.positions[symbol]
         self._log("SELL", symbol, pos.qty, fill, net, fee, pnl, reason)
+        self.log_equity({}, event="SELL", symbol=symbol)
         return round(pnl, 4)
 
     # ---------- risicobewaking ----------
@@ -174,7 +192,11 @@ class Portfolio:
             pnl_pct = pos.pnl_pct(price)
             drop_from_high = ((price - pos.high_price) / pos.high_price * 100.0
                               if pos.high_price else 0.0)
-            age_days = (datetime.now(timezone.utc) - _parse(pos.opened_at)).days
+            opened = _parse(pos.opened_at)
+            if opened.tzinfo is None:
+                opened = opened.replace(tzinfo=timezone.utc)
+            age_min = (datetime.now(timezone.utc) - opened).total_seconds() / 60.0
+            age_days = age_min / (60.0 * 24.0)
 
             reason = None
             if pnl_pct <= config.STOP_LOSS_PCT:
@@ -183,8 +205,10 @@ class Portfolio:
                 reason = f"take-profit ({pnl_pct}%)"
             elif pnl_pct > 0 and drop_from_high <= config.TRAILING_STOP_PCT:
                 reason = f"trailing-stop ({round(drop_from_high, 1)}% vanaf top)"
+            elif age_min >= getattr(config, "MAX_HOLD_MINUTES", 24 * 60):
+                reason = f"hyper-hold ({int(age_min)} min)"
             elif age_days >= config.MAX_HOLD_DAYS:
-                reason = f"te lang stil ({age_days} dagen)"
+                reason = f"te lang stil ({int(age_days)} dagen)"
 
             if reason:
                 pnl = self.sell(symbol, price, reason=reason)
