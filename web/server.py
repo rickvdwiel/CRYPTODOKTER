@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 from bot.portfolio import Portfolio
 from radar import config as radar_config
+from radar import signals
 from radar.run_radar import _online, analyze_token
 from radar.sources import dexscreener
 
@@ -92,26 +93,74 @@ def api_portfolio() -> dict:
     return s
 
 
+def _pairs_for_addresses(addrs: list[str]) -> list[dict]:
+    """Haal pairs in één DexScreener-call op (snel genoeg voor de UI)."""
+    if not addrs:
+        return []
+    try:
+        url = "https://api.dexscreener.com/latest/dex/tokens/" + ",".join(addrs)
+        r = dexscreener._get(url, timeout=12.0)
+        r.raise_for_status()
+        return r.json().get("pairs") or []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _best_pair_per_token(pairs: list[dict]) -> dict[str, dict]:
+    best: dict[str, dict] = {}
+    for pair in pairs:
+        info = dexscreener.pair_into(pair)
+        addr = (info.get("address") or "").lower()
+        if not addr:
+            continue
+        prev = best.get(addr)
+        if prev is None or float(info.get("liquidity_usd") or 0) > float(prev.get("liquidity_usd") or 0):
+            best[addr] = info
+    return best
+
+
 def api_radar(limit: int = 8) -> dict:
+    """Snelle radar voor het dashboard: trending + batch pairs, geen trage news/X."""
     if not _online():
         return {"online": False, "kandidaten": [], "melding":
                 "Geen internetverbinding: de radar heeft live data nodig."}
 
     def work():
-        profiles = dexscreener.trending_tokens(limit=radar_config.DEX_TOP_N)
+        profiles = dexscreener.trending_tokens(limit=max(limit, 12))
+        addrs = [p.get("tokenAddress") for p in profiles if p.get("tokenAddress")]
+        addrs = addrs[:limit]
+        best = _best_pair_per_token(_pairs_for_addresses(addrs))
         out = []
-        for p in profiles[:limit]:
-            addr = p.get("tokenAddress")
-            if not addr:
+        for addr in addrs:
+            info = best.get(addr.lower())
+            if not info:
                 continue
+            liq = float(info.get("liquidity_usd") or 0)
+            chg = info.get("change_h24_pct")
             try:
-                out.append(_slim(analyze_token(addr, show_x=False)))
-            except Exception:  # noqa: BLE001 — één kapotte token mag niets slopen
-                continue
+                chg_f = float(chg) if chg is not None else None
+            except (TypeError, ValueError):
+                chg_f = None
+            sc = signals.score(0, 0, None, chg_f, liq)
+            out.append({
+                "symbol": info.get("symbol") or "?",
+                "score": sc["total"],
+                "parts": sc["parts"],
+                "risk": signals.risk_label(liq),
+                "price_usd": info.get("price_usd"),
+                "change_h24": chg_f,
+                "liquidity_usd": liq,
+                "volume_h24": info.get("volume_usd_h24", 0),
+                "chain": info.get("chain", ""),
+                "url": info.get("url", ""),
+                "exchange": info.get("dex", ""),
+                "x_count": 0,
+                "news": 0,
+            })
         out.sort(key=lambda r: r["score"], reverse=True)
-        return out
+        return out[:limit]
 
-    return {"online": True, "kandidaten": _cached(f"radar:{limit}", work)}
+    return {"online": True, "kandidaten": _cached(f"radar-fast:{limit}", work, ttl=120.0)}
 
 
 def api_watchlist() -> dict:
@@ -201,8 +250,8 @@ INDEX_HTML = """<!doctype html>
     <div id="pf"><div class="skel"></div></div>
   </section>
   <section class="card">
-    <div class="head"><h2>Radar</h2><span class="status" id="rd-st">zoeken</span></div>
-    <div id="radar"><div class="skel"></div></div>
+    <div class="head"><h2>Radar — kandidaten nu</h2><span class="status" id="rd-st">scannen…</span></div>
+    <div id="radar"><div class="skel"></div><div class="skel" style="margin-top:10px;height:140px"></div></div>
   </section>
   <section class="card">
     <div class="head"><h2>Watchlist</h2><span class="status" id="wl-st">laden</span></div>
@@ -255,19 +304,21 @@ function paintRadar(rd){
     return;
   }
   const rows = rd.kandidaten||[];
-  st.textContent = rows.length ? rows.length+' kandidaten' : 'leeg';
+  st.textContent = rows.length ? rows.length+' live' : 'leeg';
   box.innerHTML = rows.length ? `
-    <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Liquiditeit</th><th>Risico</th><th>X</th><th>Nieuws</th><th></th></tr>
+    <table><tr><th>Token</th><th>Score</th><th>24u</th><th>Liquiditeit</th>
+    <th>Risico</th><th>DEX</th><th></th></tr>
     ${rows.map(k=>`<tr>
       <td><b>${k.symbol}</b> <span class="dim">${k.chain||''}</span></td>
-      <td>${k.score}</td>
+      <td><b>${k.score}</b></td>
       <td class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</td>
       <td>$${Math.round(k.liquidity_usd||0).toLocaleString('nl-NL')}</td>
-      <td>${tag(k.risk)}</td><td>${k.x_count??'—'}</td><td>${k.news??'—'}</td>
+      <td>${tag(k.risk)}</td>
+      <td class="dim">${k.exchange||'—'}</td>
       <td>${k.url?`<a href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}</td>
     </tr>`).join('')}</table>
-    <p class="empty">Ververst hooguit elke 5 minuten.</p>`
-    : '<p class="empty">Geen kandidaten die nu door het filter komen.</p>';
+    <p class="empty">Live trending via DexScreener · ververst elke paar minuten · alleen papier</p>`
+    : '<p class="empty">Geen kandidaten gevonden.</p>';
 }
 function paintWatch(wl){
   const rows = wl.items||[];
@@ -295,10 +346,10 @@ async function load(){
     document.getElementById('wl').innerHTML = '<p class="empty">Watchlist laadde niet.</p>';
   });
 
-  document.getElementById('rd-st').textContent = 'zoeken';
-  get('/api/radar', 12000).then(paintRadar).catch(()=>{
+  document.getElementById('rd-st').textContent = 'scannen…';
+  get('/api/radar', 20000).then(paintRadar).catch(()=>{
     document.getElementById('rd-st').textContent = 'traag';
-    document.getElementById('radar').innerHTML = '<p class="empty">Radar reageert nog niet. De scan duurt langer dan gewoon, de rest van het scherm blijft bruikbaar.</p>';
+    document.getElementById('radar').innerHTML = '<p class="empty">Radar reageert nog niet. De rest van het scherm blijft bruikbaar.</p>';
   });
 }
 load();
