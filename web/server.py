@@ -228,14 +228,28 @@ INDEX_HTML = """<!doctype html>
  .scope .crossx,.scope .crossy{position:absolute;background:rgba(92,225,255,.12)}
  .scope .crossx{left:0;right:0;top:50%;height:1px}
  .scope .crossy{top:0;bottom:0;left:50%;width:1px}
+ .sweep,.scope .crossx,.scope .crossy{pointer-events:none}
  .sweep{position:absolute;inset:0;background:conic-gradient(from 0deg, transparent 0deg, transparent 280deg, rgba(92,225,255,.0) 300deg, rgba(92,225,255,.35) 360deg);
   animation:spin 2.8s linear infinite;transform-origin:center}
  @keyframes spin{to{transform:rotate(360deg)}}
- .blip{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;
-  background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 1.6s ease-in-out infinite}
+ .blip{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 1.6s ease-in-out infinite;
+  cursor:pointer;z-index:2;touch-action:manipulation;border:0;padding:0}
  .blip.warn{background:var(--warn);box-shadow:0 0 10px var(--warn)}
  .blip.danger{background:var(--down);box-shadow:0 0 10px var(--down)}
+ .blip:hover,.blip:focus-visible{transform:scale(1.7);outline:none;z-index:4}
+ .blip.selected{animation:none;transform:scale(1.55);
+  box-shadow:0 0 0 2px #06090e,0 0 0 4px #fff,0 0 16px currentColor}
  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}
+ .tip{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);
+  min-width:140px;max-width:90%;padding:8px 10px;background:rgba(6,9,14,.92);
+  border:1px solid var(--line);border-radius:8px;font-size:12px;z-index:5;
+  pointer-events:none;opacity:0;transition:opacity .15s;text-align:center}
+ .tip.on{opacity:1}
+ .tip b{display:block;font-size:14px;letter-spacing:-.02em}
+ .tip span{color:var(--dim)}
+ .pick{margin-top:10px;padding:10px 12px;background:rgba(92,225,255,.06);border:1px solid #1b3d36;border-radius:10px;min-height:54px}
+ .pick .empty{margin:0;padding:4px 0}
  .card{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
  .card h2{margin:0;font-size:13px;font-weight:650;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
  .head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
@@ -248,8 +262,12 @@ INDEX_HTML = """<!doctype html>
  .kpi b{display:block;font-size:22px;margin-top:2px;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
  .up{color:var(--up)}.down{color:var(--down)}.dim{color:var(--dim)}
  .radar-list{display:flex;flex-direction:column;gap:0}
- .rcard{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:14px 0;border-bottom:1px solid var(--line)}
+ .rcard{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:14px 0;border-bottom:1px solid var(--line);
+  cursor:pointer;transition:background .15s,box-shadow .15s;border-radius:8px;outline:none}
  .rcard:last-child{border-bottom:none}
+ .rcard:hover{background:rgba(92,225,255,.04)}
+ .rcard.selected{background:rgba(92,225,255,.1);box-shadow:inset 3px 0 0 var(--accent)}
+ .rcard:focus-visible{box-shadow:inset 0 0 0 1px var(--accent)}
  .sym{font-size:17px;font-weight:700;letter-spacing:-.02em}
  .chain{font-size:12px;color:var(--dim);margin-left:6px}
  .risk{font-size:11px;color:var(--dim);margin-top:4px}
@@ -265,9 +283,36 @@ INDEX_HTML = """<!doctype html>
  .skel{height:52px;border-radius:8px;background:linear-gradient(90deg,#0b1117,#15202c,#0b1117);
   background-size:200% 100%;animation:sh 1.1s infinite;margin-bottom:8px}
  @keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+ .botops{margin:0 0 14px;padding:12px 14px;background:var(--surf);border:1px solid var(--line);border-radius:12px;
+  position:relative;overflow:hidden}
+ .botops::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(92,225,255,.04),transparent);
+  transform:translateX(-100%);animation:opswipe 4.5s ease-in-out infinite;pointer-events:none}
+ @keyframes opswipe{0%,100%{transform:translateX(-100%)}50%{transform:translateX(100%)}}
+ .ops-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;position:relative}
+ .ops-title{font-size:13px;font-weight:650;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+ .ops-live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--up)}
+ .ops-live i{width:6px;height:6px;background:var(--up);display:inline-block;box-shadow:0 0 8px var(--up);animation:blink 1.2s infinite}
+ @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+ .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;position:relative}
+ .step{padding:8px 6px;text-align:center;font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--dim);background:#0a1017;border:1px solid var(--line);border-radius:8px;transition:all .25s}
+ .step.on{color:var(--accent);border-color:#2a5a55;background:rgba(92,225,255,.08);box-shadow:0 0 12px rgba(92,225,255,.12)}
+ .step.done{color:var(--up);border-color:#1e4a38}
+ .step.skip{color:var(--warn);border-color:#4a3a18}
+ .feed{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;
+  max-height:132px;overflow:hidden;position:relative;min-height:88px}
+ .feed-line{opacity:0;transform:translateY(6px);animation:feedin .35s forwards;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .feed-line b{color:var(--tx);font-weight:650}
+ .feed-line.buy{color:var(--up)}.feed-line.sell{color:var(--down)}.feed-line.warn{color:var(--warn)}.feed-line.ok{color:var(--accent)}
+ @keyframes feedin{to{opacity:1;transform:none}}
+ .ops-bar{height:3px;background:#0a1017;border-radius:2px;margin-top:10px;overflow:hidden}
+ .ops-bar > i{display:block;height:100%;width:30%;background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  animation:bar 2.2s linear infinite}
+ @keyframes bar{from{transform:translateX(-120%)}to{transform:translateX(400%)}}
  footer{padding:8px var(--padr) 20px var(--pad);color:var(--dim);font-size:11px;max-width:720px;margin:0 auto}
  @media (prefers-reduced-motion: reduce){
-  .sweep,.blip,.skel{animation:none !important}
+  .sweep,.blip,.skel,.botops::before,.ops-live i,.ops-bar > i,.feed-line{animation:none !important}
+  .feed-line{opacity:1;transform:none}
  }
 </style></head><body>
 <header>
@@ -281,17 +326,33 @@ INDEX_HTML = """<!doctype html>
 </header>
 <main>
   <div class="hero">
-    <div class="scope" id="scope" aria-label="Animerende radar">
+    <div class="scope" id="scope" aria-label="Interactieve radar">
       <div class="crossx"></div><div class="crossy"></div>
       <div class="sweep"></div>
       <div id="blips"></div>
+      <div class="tip" id="tip" role="status"></div>
     </div>
     <div>
-      <div class="kicker">Live radar</div>
+      <div class="kicker">Live radar · tik een blip</div>
       <h1>Kandidaten nu</h1>
       <div class="updated" id="rd-updated">bezig met scannen…</div>
+      <div class="pick" id="pick"><p class="empty">Tik een blip of een rij voor details.</p></div>
     </div>
   </div>
+  <section class="botops" id="botops" aria-live="polite">
+    <div class="ops-top">
+      <div class="ops-title">Paperbot · wat gebeurt er</div>
+      <div class="ops-live"><i></i><span id="ops-state">opstarten</span></div>
+    </div>
+    <div class="pipe" id="pipe">
+      <div class="step" data-s="scan">scan</div>
+      <div class="step" data-s="score">score</div>
+      <div class="step" data-s="risk">risk</div>
+      <div class="step" data-s="paper">paper</div>
+    </div>
+    <div class="feed" id="ops-feed"></div>
+    <div class="ops-bar" aria-hidden="true"><i></i></div>
+  </section>
   <section class="card" id="radar-card">
     <div class="head"><h2>Trending</h2><span class="status" id="rd-st">scannen…</span></div>
     <div id="radar"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
@@ -333,20 +394,146 @@ async function get(url, ms){
     return await r.json();
   } finally { clearTimeout(t); }
 }
+let radarRows = [];
+let selectedIdx = -1;
+let portfolioSnap = {trades:0, equity_eur:20, cash_eur:20, open_posities:0};
+let opsTimer = null;
+let opsTick = 0;
+function setPipe(active){
+  const order=['scan','score','risk','paper'];
+  const ai = order.indexOf(active);
+  document.querySelectorAll('#pipe .step').forEach(el=>{
+    const i = order.indexOf(el.dataset.s);
+    el.classList.remove('on','done','skip');
+    if(i < ai) el.classList.add('done');
+    else if(i === ai) el.classList.add('on');
+  });
+}
+function pushFeed(html, cls){
+  const feed = document.getElementById('ops-feed');
+  const line = document.createElement('div');
+  line.className = 'feed-line'+(cls?' '+cls:'');
+  line.innerHTML = html;
+  feed.prepend(line);
+  while(feed.children.length > 6) feed.lastChild.remove();
+}
+function paperDecision(k){
+  const score = Number(k.score)||0;
+  const liq = Number(k.liquidity_usd)||0;
+  const risk = k.risk||'';
+  if(risk.includes('RUG') || risk.includes('onbekend')) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · risico ${esc(risk)}`};
+  if(score < 18) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · score ${esc(score)} te laag`};
+  if(liq < 20000) return {cls:'warn', msg:`skip <b>${esc(k.symbol)}</b> · liq te dun`};
+  if((portfolioSnap.open_posities||0) >= 2) return {cls:'warn', msg:`hold · max 2 paper-posities`};
+  if((portfolioSnap.cash_eur||0) < 5) return {cls:'warn', msg:`hold · kas ${eur(portfolioSnap.cash_eur)} te klein`};
+  // Demo/paper: no live orders — show would-be paper signal honestly
+  return {cls:'ok', msg:`paper-signaal <b>${esc(k.symbol)}</b> · geen echte order · dry-run`};
+}
+function runOpsCycle(){
+  if(opsTimer){ clearTimeout(opsTimer); opsTimer=null; }
+  const rows = radarRows.slice(0,5);
+  const state = document.getElementById('ops-state');
+  if(!rows.length){
+    setPipe('scan');
+    state.textContent = 'wacht op kandidaten';
+    pushFeed('radar leeg · opnieuw scannen…');
+    opsTimer = setTimeout(runOpsCycle, 4000);
+    return;
+  }
+  const k = rows[opsTick % rows.length];
+  opsTick++;
+  const steps = [
+    {s:'scan', delay:700, cls:'', html:`scan DexScreener · <b>${esc(k.symbol)}</b> op ${esc(k.chain||'?')}`},
+    {s:'score', delay:900, cls:'ok', html:`score <b>${esc(k.score)}</b> · 24u <b class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</b>`},
+    {s:'risk', delay:900, cls: riskClass(k.risk)==='rug'||riskClass(k.risk)==='mid'?'warn':'ok', html:`risk <b>${esc(k.risk||'—')}</b> · liq <b>${money(k.liquidity_usd)}</b>`},
+    {s:'paper', delay:1100, cls:null, html:null, decide:true},
+  ];
+  let i=0;
+  function next(){
+    if(i>=steps.length){
+      state.textContent = 'loop · paper-only';
+      opsTimer = setTimeout(runOpsCycle, 1600);
+      return;
+    }
+    const st = steps[i++];
+    setPipe(st.s);
+    state.textContent = st.s;
+    if(st.decide){
+      const d = paperDecision(k);
+      pushFeed(d.msg, d.cls);
+      if(d.cls==='warn') document.querySelector('#pipe .step[data-s="paper"]')?.classList.add('skip');
+      else document.querySelector('#pipe .step[data-s="paper"]')?.classList.add('done');
+    } else {
+      pushFeed(st.html, st.cls);
+    }
+    opsTimer = setTimeout(next, st.delay);
+  }
+  next();
+}
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showTip(k, on){
+  const tip = document.getElementById('tip');
+  if(!on || !k){ tip.classList.remove('on'); tip.innerHTML=''; return; }
+  tip.innerHTML = `<b>${esc(k.symbol)}</b><span>score ${esc(k.score)} · ${esc(k.risk||'—')}</span>`;
+  tip.classList.add('on');
+}
+function paintPick(k){
+  const el = document.getElementById('pick');
+  if(!k){
+    el.innerHTML = '<p class="empty">Tik een blip of een rij voor details.</p>';
+    return;
+  }
+  const ch = k.change_h24!=null ? pct(k.change_h24) : '—';
+  el.innerHTML = `<div class="sym">${esc(k.symbol)} <span class="chain">${esc(k.chain||'')}</span></div>
+    <div class="risk ${riskClass(k.risk)}">${esc(k.risk||'')}</div>
+    <div class="meta">
+      <span>score <b>${esc(k.score)}</b></span>
+      <span>24u <b class="${cls(k.change_h24||0)}">${ch}</b></span>
+      <span>liq <b>${money(k.liquidity_usd)}</b></span>
+      ${k.url?`<a href="${esc(k.url)}" target="_blank" rel="noopener">chart ↗</a>`:''}
+    </div>`;
+}
+function selectCandidate(i, {scroll=true}={}){
+  if(i<0 || i>=radarRows.length) return;
+  selectedIdx = i;
+  const k = radarRows[i];
+  document.querySelectorAll('.blip').forEach(b=>{
+    const on = Number(b.dataset.i)===i;
+    b.classList.toggle('selected', on);
+    if(on) b.setAttribute('aria-pressed','true'); else b.setAttribute('aria-pressed','false');
+  });
+  document.querySelectorAll('.rcard[data-i]').forEach(c=>{
+    const on = Number(c.dataset.i)===i;
+    c.classList.toggle('selected', on);
+    if(on && scroll) c.scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
+  paintPick(k);
+  showTip(k, true);
+  // spotlight selected token in next ops beat
+  if(radarRows.length){
+    const idx = radarRows.findIndex((_,j)=>j===i);
+    if(idx>=0) opsTick = idx;
+  }
+}
 function paintBlips(rows){
   const box = document.getElementById('blips');
-  if(!rows.length){ box.innerHTML=''; return; }
+  if(!rows.length){ box.innerHTML=''; showTip(null,false); return; }
   box.innerHTML = rows.slice(0,8).map((k,i)=>{
     const score = Math.max(0, Math.min(100, Number(k.score)||0));
-    const r = 18 + (score/100)*32; // % from center
+    const r = 18 + (score/100)*32;
     const ang = (i / Math.max(rows.length,1)) * Math.PI * 2 + (score/40);
     const x = 50 + Math.cos(ang) * r;
     const y = 50 + Math.sin(ang) * r;
     const delay = (i*0.18).toFixed(2);
-    return `<span class="blip ${blipClass(k.risk)}" title="${k.symbol} · ${k.score}" style="left:${x}%;top:${y}%;animation-delay:${delay}s"></span>`;
+    return `<button type="button" class="blip ${blipClass(k.risk)}" data-i="${i}"
+      aria-label="${esc(k.symbol)} score ${esc(k.score)}" aria-pressed="false"
+      style="left:${x}%;top:${y}%;animation-delay:${delay}s"></button>`;
   }).join('');
 }
 function paintPortfolio(pf){
+  portfolioSnap = pf || portfolioSnap;
   document.getElementById('pf-st').textContent = pf.trades ? pf.trades+' trades' : 'nog geen trades';
   const rows = (pf.posities||[]);
   document.getElementById('pf').innerHTML = `
@@ -356,8 +543,8 @@ function paintPortfolio(pf){
       <div class="kpi"><span>Kas</span><b>${eur(pf.cash_eur)}</b></div>
       <div class="kpi"><span>Trades</span><b>${pf.trades||0}</b></div>
       <div class="kpi"><span>Fees</span><b>${eur(pf.fees_paid_eur)}</b></div>
-    </div>` + (rows.length ? rows.map(p=>`<div class="rcard"><div><div class="sym">${p.symbol}</div>
-      <div class="meta"><span>qty <b>${p.qty}</b></span><span>P&L <b class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</b></span></div></div></div>`).join('')
+    </div>` + (rows.length ? rows.map(p=>`<div class="rcard"><div><div class="sym">${esc(p.symbol)}</div>
+      <div class="meta"><span>qty <b>${esc(p.qty)}</b></span><span>P&L <b class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</b></span></div></div></div>`).join('')
     : '<p class="empty">Nog geen open posities.</p>');
 }
 function paintRadar(rd){
@@ -369,34 +556,43 @@ function paintRadar(rd){
   if(!rd.online){
     st.textContent = 'offline';
     upd.textContent = 'geen live data';
+    radarRows = [];
+    selectedIdx = -1;
     paintBlips([]);
-    box.innerHTML = `<p class="empty">${rd.melding||'Geen live data.'}</p>`;
+    paintPick(null);
+    box.innerHTML = `<p class="empty">${esc(rd.melding||'Geen live data.')}</p>`;
     return;
   }
   const rows = rd.kandidaten||[];
+  radarRows = rows;
   st.textContent = rows.length ? rows.length+' live' : 'leeg';
-  upd.textContent = rows.length ? `bijgewerkt ${stamp} · ${rows.length} kandidaten op de radar` : `bijgewerkt ${stamp} · geen kandidaten`;
+  upd.textContent = rows.length ? `bijgewerkt ${stamp} · ${rows.length} kandidaten · tik een blip` : `bijgewerkt ${stamp} · geen kandidaten`;
   paintBlips(rows);
   if(!rows.length){
+    selectedIdx = -1;
+    paintPick(null);
     box.innerHTML = '<p class="empty">Geen kandidaten gevonden.</p>';
     return;
   }
-  box.innerHTML = `<div class="radar-list">${rows.map(k=>`
-    <article class="rcard">
+  box.innerHTML = `<div class="radar-list">${rows.map((k,i)=>`
+    <article class="rcard" data-i="${i}" tabindex="0" role="button" aria-pressed="false">
       <div>
-        <div><span class="sym">${k.symbol}</span><span class="chain">${k.chain||''}</span></div>
-        <div class="risk ${riskClass(k.risk)}">${k.risk||''}</div>
+        <div><span class="sym">${esc(k.symbol)}</span><span class="chain">${esc(k.chain||'')}</span></div>
+        <div class="risk ${riskClass(k.risk)}">${esc(k.risk||'')}</div>
         <div class="meta">
           <span>24u <b class="${cls(k.change_h24||0)}">${k.change_h24!=null?pct(k.change_h24):'—'}</b></span>
           <span>liq <b>${money(k.liquidity_usd)}</b></span>
-          <span>dex <b>${k.exchange||'—'}</b></span>
+          <span>dex <b>${esc(k.exchange||'—')}</b></span>
         </div>
       </div>
       <div>
-        <div class="score">${k.score}</div>
-        ${k.url?`<a class="btn" href="${k.url}" target="_blank" rel="noopener">chart</a>`:''}
+        <div class="score">${esc(k.score)}</div>
+        ${k.url?`<a class="btn" href="${esc(k.url)}" target="_blank" rel="noopener" data-chart="1">chart</a>`:''}
       </div>
     </article>`).join('')}</div>`;
+  if(selectedIdx>=0 && selectedIdx<rows.length) selectCandidate(selectedIdx, {scroll:false});
+  else selectCandidate(0, {scroll:false});
+  runOpsCycle();
 }
 function paintWatch(wl){
   const rows = wl.items||[];
@@ -430,6 +626,34 @@ async function load(){
     document.getElementById('wl').innerHTML = '<p class="empty">Watchlist laadde niet.</p>';
   });
 }
+document.getElementById('blips').addEventListener('click', e=>{
+  const b = e.target.closest('.blip');
+  if(!b) return;
+  selectCandidate(Number(b.dataset.i));
+});
+document.getElementById('blips').addEventListener('pointerover', e=>{
+  const b = e.target.closest('.blip');
+  if(!b) return;
+  const k = radarRows[Number(b.dataset.i)];
+  showTip(k, true);
+});
+document.getElementById('blips').addEventListener('pointerout', e=>{
+  if(e.target.closest('.blip') && selectedIdx>=0) showTip(radarRows[selectedIdx], true);
+  else if(!e.relatedTarget || !e.relatedTarget.closest('.blip')) showTip(radarRows[selectedIdx], selectedIdx>=0);
+});
+document.getElementById('radar').addEventListener('click', e=>{
+  if(e.target.closest('[data-chart]')) return;
+  const c = e.target.closest('.rcard[data-i]');
+  if(!c) return;
+  selectCandidate(Number(c.dataset.i));
+});
+document.getElementById('radar').addEventListener('keydown', e=>{
+  if(e.key!=='Enter' && e.key!==' ') return;
+  const c = e.target.closest('.rcard[data-i]');
+  if(!c) return;
+  e.preventDefault();
+  selectCandidate(Number(c.dataset.i));
+});
 load();
 setInterval(load, 60000);
 </script></body></html>"""
