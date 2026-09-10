@@ -323,10 +323,14 @@ INDEX_HTML = """<!doctype html>
  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
  .brand{font-size:18px;font-weight:700;letter-spacing:-.03em}
  .brand span{color:var(--accent)}
- .statusline{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--dim)}
+ .statusline{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--dim);flex-wrap:wrap;justify-content:flex-end}
  .statusline .dot{width:7px;height:7px;background:var(--dim);display:inline-block;margin-right:6px;border-radius:0}
  .statusline .dot.on{background:var(--up);box-shadow:0 0 8px var(--up)}
  .statusline .paper{color:var(--paper);font-weight:650;letter-spacing:.04em;text-transform:uppercase;font-size:11px}
+ .saldo{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;margin-right:4px}
+ .saldo .amt{font-size:20px;font-weight:700;letter-spacing:-.04em;color:var(--tx);font-variant-numeric:tabular-nums}
+ .saldo .sub{font-size:11px;color:var(--dim);margin-top:2px}
+ .saldo .sub b{font-weight:650}
  main{padding:12px var(--padr) 8px var(--pad);max-width:720px;margin:0 auto}
  .hero{display:grid;gap:14px;margin:6px 0 16px}
  @media(min-width:700px){.hero{grid-template-columns:220px 1fr;align-items:center}}
@@ -439,6 +443,10 @@ INDEX_HTML = """<!doctype html>
   <div class="row">
     <div class="brand">Crypto<span>Dokter</span></div>
     <div class="statusline">
+      <div class="saldo" id="saldo" title="Papieren equity">
+        <span class="amt" id="saldo-amt">€…</span>
+        <span class="sub"><span id="saldo-pnl">—</span> · kas <b id="saldo-cash">—</b></span>
+      </div>
       <span class="paper">Alleen papier</span>
       <span id="health"><i class="dot" id="hdot"></i><span id="htext">…</span></span>
     </div>
@@ -664,8 +672,21 @@ function paintBlips(rows){
       style="left:${x}%;top:${y}%;animation-delay:${delay}s"></button>`;
   }).join('');
 }
+function paintSaldo(pf){
+  if(!pf) return;
+  const amt = document.getElementById('saldo-amt');
+  const pnl = document.getElementById('saldo-pnl');
+  const cash = document.getElementById('saldo-cash');
+  if(!amt) return;
+  amt.textContent = eur(pf.equity_eur);
+  const r = Number(pf.rendement_pct||0);
+  pnl.textContent = pct(r);
+  pnl.className = cls(r);
+  cash.textContent = eur(pf.cash_eur);
+}
 function paintPortfolio(pf){
   portfolioSnap = pf || portfolioSnap;
+  paintSaldo(pf);
   document.getElementById('pf-st').textContent = pf.trades ? pf.trades+' trades' : 'nog geen trades';
   const rows = (pf.posities||[]);
   document.getElementById('pf').innerHTML = `
