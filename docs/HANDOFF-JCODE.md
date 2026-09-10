@@ -236,3 +236,12 @@ cryptodokter/
 - NL: cryptonews-nl.
 - Intl: pymnts-crypto, ft-crypto.
 - Categorie-feeds van al aanwezige sites overgeslagen. cryptoinside.nl niet gebruikt.
+
+[CryptoDokter Newsbronnen, 2026-09-10] TREND_FEEDS 59 → 66 (+7):
+- NL: crypto-gids.
+- Intl: coinpaper, ledger-insights, techcrunch-crypto, finextra-blockchain, arbitrum, vitalik.
+- Alleen HTTP 200 + ElementTree-parsebaar (project-UA). Fail-open blijft.
+- Overgeslagen: Blockworks/The Defiant/Kraken/Solana (403), DL News/CryptoPolitan/NullTX (kapotte CDATA),
+  captainaltcoin (flaky), categorie-feeds van al aanwezige sites, cryptoinside.nl.
+- tests/test_news_watchers.py: asserts crypto-gids/coinpaper/vitalik (≥65).
+- search() contract ongewijzigd.
