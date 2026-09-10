@@ -33,7 +33,7 @@ from radar.sources import dexscreener
 ROOT = Path(__file__).resolve().parent
 WATCHLIST = ROOT.parent / "data" / "watchlist.txt"
 
-CACHE_TTL = 45.0  # hyper: snellere cache, bronnen niet te hard slaan
+CACHE_TTL = 12.0  # realtime-achtig; Dex niet te hard slaan
 _cache: dict = {}
 _lock = threading.Lock()
 
@@ -79,7 +79,7 @@ def api_portfolio() -> dict:
         prices = _cached(
             "fast-prices:" + ",".join(sorted(f"{k}:{v}" for k,v in addr_map.items())),
             lambda: paper_bot.fast_prices(list(pf.positions), address_by_symbol=addr_map),
-            ttl=30.0,
+            ttl=8.0,
         ) or {}
         for sym, pos in pf.positions.items():
             prices.setdefault(sym, pos.entry_price)
@@ -171,7 +171,7 @@ def api_radar(limit: int = 8) -> dict:
         out.sort(key=lambda r: r["score"], reverse=True)
         return out[:limit]
 
-    return {"online": True, "kandidaten": _cached(f"radar-fast:{limit}", work, ttl=120.0)}
+    return {"online": True, "kandidaten": _cached(f"radar-fast:{limit}", work, ttl=25.0)}
 
 
 def api_hunt(dry_run: bool = False) -> dict:
@@ -339,7 +339,9 @@ INDEX_HTML = """<!doctype html>
   padding:12px 0 14px;border-top:1px solid rgba(28,38,51,.65)}
  .saldo-bar .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:650}
  .saldo-bar .amt{font-size:clamp(28px,7vw,36px);font-weight:780;letter-spacing:-.05em;
-  font-variant-numeric:tabular-nums;line-height:1;margin-top:4px}
+  font-variant-numeric:tabular-nums;line-height:1;margin-top:4px;transition:color .25s,text-shadow .25s}
+ .saldo-bar .amt.flash{color:var(--accent);text-shadow:0 0 18px rgba(92,225,255,.35)}
+ .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-right:6px;box-shadow:0 0 8px var(--up);animation:blink 1.2s infinite;vertical-align:middle}
  .saldo-bar .right{text-align:right}
  .saldo-bar .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
   background:rgba(16,24,32,.9);border:1px solid var(--line);font-size:12px;font-weight:650;
@@ -466,7 +468,7 @@ INDEX_HTML = """<!doctype html>
   </div>
   <div class="saldo-bar" id="saldo" title="Papieren equity">
     <div>
-      <div class="label">Saldo</div>
+      <div class="label"><i class="live-dot" aria-hidden="true"></i>Saldo live</div>
       <div class="amt" id="saldo-amt">€…</div>
     </div>
     <div class="right">
@@ -505,7 +507,7 @@ INDEX_HTML = """<!doctype html>
     <div class="ops-bar" aria-hidden="true"><i></i></div>
   </section>
   <section class="card" id="chart-card">
-    <div class="head"><h2>Hyper trackrecord</h2><span class="status" id="ch-st">laden</span></div>
+    <div class="head"><h2>Hyper trackrecord</h2><span class="status"><span id="ch-st">laden</span> · <span id="live-tick">…</span></span></div>
     <div class="chart-wrap"><canvas id="eq-chart" width="680" height="200"></canvas></div>
     <div class="chart-legend">
       <span class="eq"><i></i>equity</span>
@@ -701,11 +703,23 @@ function paintSaldo(pf){
   const pnl = document.getElementById('saldo-pnl');
   const cash = document.getElementById('saldo-cash');
   if(!amt) return;
-  amt.textContent = eur(pf.equity_eur);
+  const next = eur(pf.equity_eur);
+  if(amt.textContent && amt.textContent!=='€…' && amt.textContent!==next){
+    amt.classList.add('flash');
+    setTimeout(()=>amt.classList.remove('flash'), 450);
+  }
+  amt.textContent = next;
   const r = Number(pf.rendement_pct||0);
   pnl.textContent = pct(r);
   pnl.className = cls(r);
   cash.textContent = eur(pf.cash_eur);
+  const st = document.getElementById('ch-st');
+  // stamp last live sync on chart status if idle-ish
+  const tick = document.getElementById('live-tick');
+  if(tick){
+    const now = new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    tick.textContent = 'sync '+now;
+  }
 }
 function paintPortfolio(pf){
   portfolioSnap = pf || portfolioSnap;
@@ -997,21 +1011,33 @@ document.getElementById('radar').addEventListener('keydown', e=>{
   e.preventDefault();
   selectCandidate(Number(c.dataset.i));
 });
+function refreshLive(){
+  get('/api/portfolio', 6000).then(paintPortfolio).catch(()=>{});
+  get('/api/chart', 6000).then(paintChart).catch(()=>{});
+  get('/api/health', 3000).then(h=>{
+    document.getElementById('htext').textContent = h.online ? 'online' : 'offline';
+    document.getElementById('hdot').className = h.online ? 'dot on' : 'dot';
+  }).catch(()=>{ document.getElementById('htext').textContent = 'offline'; });
+}
+function refreshRadar(){
+  get('/api/radar', 15000).then(paintRadar).catch(()=>{});
+  get('/api/watchlist', 8000).then(paintWatch).catch(()=>{});
+}
 load();
-setInterval(load, 30000);
+// realtime cijfers: saldo/posities/grafiek elke 5s
+setInterval(refreshLive, 5000);
+// radar iets langzamer
+setInterval(refreshRadar, 20000);
+// volledige reload als vangnet
+setInterval(load, 60000);
 setInterval(()=>get('/api/hyper', 40000).then(h=>{
   if(!h) return;
   (h.exits||[]).forEach(e=>pushFeed(`SELL <b>${esc(e.symbol)}</b> · ${esc(e.reason)} · €${Number(e.pnl||0).toFixed(2)}`, 'sell'));
   (h.rotates||[]).forEach(r=>pushFeed(`ROTATE <b>${esc(r.sold)}</b> → <b>${esc(r.to)}</b>`, 'warn'));
   (h.buys||[]).forEach(s=>pushFeed(`PAPER BUY <b>${esc(s)}</b>`, 'buy'));
-  if((h.exits||[]).length||(h.buys||[]).length||(h.rotates||[]).length){
-    get('/api/chart',8000).then(paintChart).catch(()=>{});
-    get('/api/portfolio',8000).then(paintPortfolio).catch(()=>{});
-  }
+  refreshLive();
 }).catch(()=>{}), 45000);
-setInterval(()=>get('/api/hunt', 25000).then(h=>{
-  if((h.gekocht||[]).length){ load(); }
-}).catch(()=>{}), 5*60*1000);
+
 </script></body></html>"""
 
 

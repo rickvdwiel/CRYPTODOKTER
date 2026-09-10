@@ -8,7 +8,7 @@ Hyper-paper (sep 2026): snelle in/uit tussen coins, strakke exits, frequent hunt
 from __future__ import annotations
 
 # Portefeuille — hyper-paper (virtueel)
-START_BUDGET_EUR = 70.0
+START_BUDGET_EUR = 100.0
 MAX_POSITIONS = 7
 POSITION_SIZE_PCT = 12.0         # ~€8–9 per bet → sneller roteren
 MIN_POSITION_EUR = 2.0
