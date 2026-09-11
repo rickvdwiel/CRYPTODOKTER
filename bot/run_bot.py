@@ -8,6 +8,11 @@
     python -m bot.run_bot --reset             # portefeuille terug naar start
 
 Er gaan NOOIT echte orders naar een exchange. Alles is papier.
+
+Hyper forever-loop: start precies ÉÉN van
+  python -m web.server          # dashboard + hyper-paper loop (aanbevolen)
+  python -m bot.scheduler       # foreground hyper (niet naast web.server)
+`--hyper` hier is één cycle (geen forever); cycle-lock voorkomt race met de loop.
 """
 from __future__ import annotations
 
@@ -16,6 +21,7 @@ import sys
 from typing import Optional
 
 from bot import config
+from bot.locks import try_hyper_cycle_lock
 from bot.portfolio import STATE_FILE, Portfolio, print_summary
 from radar import config as radar_config
 from radar.run_radar import DISCLAIMER, _online, analyze_token
@@ -231,8 +237,24 @@ def fast_prices(symbols: list[str] | None = None, address_by_symbol: dict | None
 
 
 def cmd_hyper_cycle(dry_run: bool = False) -> dict:
-    """Eén hyper-tick: snelle exits, rotatie naar betere new coins, hunt. Alleen papier."""
+    """Eén hyper-tick: snelle exits, rotatie naar betere new coins, hunt. Alleen papier.
+
+    Cycle flock: als een andere hyper-path al draait, skip (geen dubbele trades/fees).
+    """
     result = {"exits": [], "rotates": [], "buys": [], "paper_only": True}
+    held = try_hyper_cycle_lock()
+    if held is None:
+        result["skipped"] = True
+        result["reason"] = "hyper-busy"
+        print("hyper: overslaan — andere cycle houdt hyper_cycle.lock")
+        return result
+    try:
+        return _cmd_hyper_cycle_locked(dry_run=dry_run, result=result)
+    finally:
+        held.release()
+
+
+def _cmd_hyper_cycle_locked(dry_run: bool, result: dict) -> dict:
     if not _online():
         result["error"] = "offline"
         return result
@@ -296,9 +318,9 @@ def cmd_hyper_cycle(dry_run: bool = False) -> dict:
     result["cash_eur"] = after_pf.cash_eur
     result["banked_eur"] = after_pf.banked_eur
     result["open"] = len(after_pf.positions)
-    result["equity_eur"] = after_pf.equity_eur(
-        {s: p.entry_price for s, p in after_pf.positions.items()}
-    )
+    prices_mark = {s: p.entry_price for s, p in after_pf.positions.items()}
+    result["equity_eur"] = after_pf.equity_eur(prices_mark)  # cash+pos
+    result["total_eur"] = after_pf.total_eur(prices_mark)    # cash+pos+banked
     return result
 
 
