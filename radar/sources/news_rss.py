@@ -96,6 +96,12 @@ TREND_FEEDS: dict[str, str] = {
     "multicoin": "https://multicoin.capital/rss.xml",
     "altcoindaily": "https://altcoindaily.co/feed/",
     "raydium": "https://raydium.medium.com/feed",
+    "hyperliquid-blog": "https://hyperliquid.medium.com/feed",
+    "marginfi": "https://medium.com/feed/marginfi",
+    "sui-blog": "https://blog.sui.io/rss/",
+    "aptos-blog": "https://medium.com/feed/aptoslabs",
+    "sei-blog": "https://blog.sei.io/rss/",
+
 }
 
 
