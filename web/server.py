@@ -273,6 +273,18 @@ def api_chart() -> dict:
     return {"points": points, "markers": markers[-200:], "paper_only": True}
 
 
+def api_live_snapshot() -> dict:
+    """Eén live pakket voor SSE/polling."""
+    return {
+        "t": time.time(),
+        "portfolio": api_portfolio(),
+        "chart": api_chart(),
+        "radar": api_radar(limit=8),
+        "health": {"ok": True, "online": _online()},
+        "watchlist": api_watchlist(),
+    }
+
+
 def api_hyper() -> dict:
     """Draai één hyper-cycle (exits + rotate + hunt). Nooit live."""
     return paper_bot.cmd_hyper_cycle(dry_run=False)
@@ -333,6 +345,9 @@ INDEX_HTML = """<!doctype html>
  .brand span{color:var(--accent)}
  .badges{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--dim)}
  .badges .paper{color:var(--paper);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+ .badges .live-mode{color:var(--up);font-weight:800;letter-spacing:.08em;font-size:10px;
+  padding:3px 7px;border:1px solid rgba(61,214,140,.35);border-radius:999px;background:rgba(61,214,140,.08);transition:box-shadow .2s}
+ .badges .live-mode.pulse{box-shadow:0 0 12px rgba(61,214,140,.55)}
  .badges .dot{width:7px;height:7px;background:var(--mute);display:inline-block;margin-right:6px;border-radius:50%}
  .badges .dot.on{background:var(--up);box-shadow:0 0 10px var(--up)}
  .saldo-bar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
@@ -529,6 +544,7 @@ INDEX_HTML = """<!doctype html>
     <div class="brand">Crypto<span>Dokter</span></div>
     <div class="badges">
       <span class="paper">Alleen papier</span>
+      <span class="live-mode" id="live-mode" title="Server-Sent Events live updates">LIVE</span>
       <span id="health"><i class="dot" id="hdot"></i><span id="htext">…</span></span>
     </div>
   </div>
@@ -871,10 +887,14 @@ function paintWatch(wl){
     : '<p class="empty">Watchlist is leeg.</p>';
 }
 
-function paintChart(data){
+function paintChart(data, opts){
+  opts = opts || {};
   const st = document.getElementById('ch-st');
   const canvas = document.getElementById('eq-chart');
   if(!canvas) return;
+  const fp = JSON.stringify({p:(data.points||[]).slice(-40), m:(data.markers||[]).slice(-40)});
+  if(opts.soft && window._chartFp === fp){ return; }
+  window._chartFp = fp;
   if(window._chartAnim){ cancelAnimationFrame(window._chartAnim); window._chartAnim=null; }
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
@@ -1087,25 +1107,46 @@ document.getElementById('radar').addEventListener('keydown', e=>{
   e.preventDefault();
   selectCandidate(Number(c.dataset.i));
 });
-function refreshLive(){
-  get('/api/portfolio', 6000).then(paintPortfolio).catch(()=>{});
-  get('/api/chart', 6000).then(paintChart).catch(()=>{});
-  get('/api/health', 3000).then(h=>{
-    document.getElementById('htext').textContent = h.online ? 'online' : 'offline';
-    document.getElementById('hdot').className = h.online ? 'dot on' : 'dot';
-  }).catch(()=>{ document.getElementById('htext').textContent = 'offline'; });
+function applyLive(bundle){
+  if(!bundle) return;
+  const lm = document.getElementById('live-mode');
+  if(lm){ lm.classList.add('pulse'); setTimeout(()=>lm.classList.remove('pulse'), 280); }
+  if(bundle.health){
+    document.getElementById('htext').textContent = bundle.health.online ? 'online' : 'offline';
+    document.getElementById('hdot').className = bundle.health.online ? 'dot on' : 'dot';
+  }
+  if(bundle.portfolio) paintPortfolio(bundle.portfolio);
+  if(bundle.chart) paintChart(bundle.chart, {soft:true});
+  if(bundle.radar) paintRadar(bundle.radar);
+  if(bundle.watchlist) paintWatch(bundle.watchlist);
+  const tick = document.getElementById('live-tick');
+  if(tick){
+    const now = new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    tick.textContent = 'live '+now;
+  }
 }
-function refreshRadar(){
-  get('/api/radar', 15000).then(paintRadar).catch(()=>{});
-  get('/api/watchlist', 8000).then(paintWatch).catch(()=>{});
+function refreshLive(){
+  get('/api/live', 12000).then(applyLive).catch(()=>{
+    get('/api/portfolio', 6000).then(paintPortfolio).catch(()=>{});
+    get('/api/chart', 6000).then(d=>paintChart(d,{soft:true})).catch(()=>{});
+  });
+}
+function startLiveStream(){
+  if(window._es){ try{ window._es.close(); }catch(e){} }
+  if(typeof EventSource === 'undefined'){
+    setInterval(refreshLive, 4000);
+    return;
+  }
+  const es = new EventSource('/api/stream');
+  window._es = es;
+  es.addEventListener('live', (ev)=>{
+    try{ applyLive(JSON.parse(ev.data)); }catch(e){}
+  });
+  es.onerror = ()=>{ refreshLive(); };
 }
 load();
-// realtime cijfers: saldo/posities/grafiek elke 5s
-setInterval(refreshLive, 5000);
-// radar iets langzamer
-setInterval(refreshRadar, 20000);
-// volledige reload als vangnet
-setInterval(load, 60000);
+startLiveStream();
+setInterval(refreshLive, 15000);
 setInterval(()=>get('/api/hyper', 40000).then(h=>{
   if(!h) return;
   (h.exits||[]).forEach(e=>pushFeed(`SELL <b>${esc(e.symbol)}</b> · ${esc(e.reason)} · €${Number(e.pnl||0).toFixed(2)}`, 'sell'));
@@ -1113,7 +1154,6 @@ setInterval(()=>get('/api/hyper', 40000).then(h=>{
   (h.buys||[]).forEach(s=>pushFeed(`PAPER BUY <b>${esc(s)}</b>`, 'buy'));
   refreshLive();
 }).catch(()=>{}), 45000);
-
 </script></body></html>"""
 
 
@@ -1134,8 +1174,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _json(self, payload: dict, status: int = 200) -> None:
-        self._send(json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                   "application/json; charset=utf-8", status)
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
@@ -1156,12 +1202,34 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(api_hyper())
             elif path == "/api/health":
                 self._json({"ok": True, "online": _online()})
+            elif path == "/api/live":
+                self._json(api_live_snapshot())
+            elif path == "/api/stream":
+                self._sse_stream()
             else:
                 self._json({"error": "niet gevonden"}, 404)
         except BrokenPipeError:
             pass
         except Exception as e:  # noqa: BLE001 — dashboard mag nooit omvallen
             self._json({"error": str(e)}, 500)
+
+    def _sse_stream(self) -> None:
+        """Server-Sent Events: push live dashboard data (~elke 4s)."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        try:
+            while True:
+                payload = api_live_snapshot()
+                data = json.dumps(payload, ensure_ascii=False)
+                self.wfile.write(f"event: live\ndata: {data}\n\n".encode("utf-8"))
+                self.wfile.flush()
+                time.sleep(4)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
 
 
 
