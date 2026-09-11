@@ -290,6 +290,27 @@ def api_hyper() -> dict:
     return paper_bot.cmd_hyper_cycle(dry_run=False)
 
 
+def api_payout(amount: Optional[float] = None) -> dict:
+    """Papieren uitbetaling: verplaats kas naar banked (niet opnieuw inzetbaar)."""
+    pf = Portfolio.load()
+    before = round(pf.cash_eur, 2)
+    moved = pf.payout(amount)
+    pf.save()
+    s = api_portfolio()
+    return {
+        "ok": moved > 0,
+        "moved_eur": moved,
+        "cash_before": before,
+        "cash_eur": s.get("cash_eur"),
+        "banked_eur": s.get("banked_eur"),
+        "portfolio": s,
+        "melding": (
+            f"Uitbetaald {moved:.2f} EUR naar banked (papier)."
+            if moved > 0 else "Geen kas om uit te betalen."
+        ),
+    }
+
+
 def api_watchlist() -> dict:
     if not WATCHLIST.exists():
         return {"items": []}
@@ -310,7 +331,7 @@ def api_watchlist() -> dict:
 
 
 INDEX_HTML = """<!doctype html>
-<html lang="nl" translate="no"><head>
+<html lang="nl" translate="no" data-build="spectrum-metrics-2"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#06090e">
@@ -322,7 +343,7 @@ INDEX_HTML = """<!doctype html>
  :root{
   --bg:#05070b; --surf:#0c1219; --surf2:#101820; --line:#1a2330; --line2:#243041;
   --tx:#f2f6fb; --dim:#8794a6; --mute:#5c6b7c;
-  --up:#3dd68c; --down:#ff6b7a; --warn:#e6b450; --accent:#5ce1ff; --paper:#d4af37;
+  --up:#3dd68c; --down:#ff6b7a; --warn:#e6b450; --accent:#4B9CF5; --info:#4B9CF5; --paper:#d4af37;
   --pad: max(16px, env(safe-area-inset-left));
   --padr: max(16px, env(safe-area-inset-right));
   --r: 14px; --shadow: 0 8px 28px rgba(0,0,0,.35);
@@ -330,8 +351,8 @@ INDEX_HTML = """<!doctype html>
  *{box-sizing:border-box}
  html{-webkit-text-size-adjust:100%}
  body{margin:0;background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(92,225,255,.07), transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, rgba(61,214,140,.05), transparent 50%),
+    radial-gradient(1200px 600px at 10% -10%, rgba(75,156,245,.045), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(61,214,140,.04), transparent 50%),
     var(--bg);
   color:var(--tx);
   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
@@ -356,43 +377,63 @@ INDEX_HTML = """<!doctype html>
  .saldo-bar .label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mute);font-weight:700}
  .saldo-bar .amt{font-size:clamp(32px,5.5vw,44px);font-weight:780;letter-spacing:-.055em;
   font-variant-numeric:tabular-nums;line-height:1;margin-top:8px;transition:color .25s,text-shadow .25s}
- .saldo-bar .amt.flash{color:var(--accent);text-shadow:0 0 18px rgba(92,225,255,.35)}
+ .saldo-bar .amt.flash{color:var(--accent);text-shadow:0 0 12px rgba(75,156,245,.22)}
  .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-right:6px;box-shadow:0 0 8px var(--up);animation:blink 1.2s infinite;vertical-align:middle}
  .saldo-bar .eq-sub{margin-top:8px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.03em}
- .saldo-bar .metrics{display:grid;grid-template-columns:repeat(4,minmax(88px,1fr));gap:8px;flex:0 1 420px;max-width:460px}
+ .saldo-bar .metrics{display:grid;grid-template-columns:repeat(4,minmax(118px,1fr));gap:8px;flex:1 1 560px;max-width:620px;min-width:0}
  .saldo-bar .metric{padding:10px 12px;border:1px solid var(--line);border-radius:12px;
-  background:rgba(0,0,0,.22);min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+  background:rgba(0,0,0,.22);min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:6px;overflow:visible}
  .saldo-bar .metric .m-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:700;line-height:1.2}
- .saldo-bar .metric .m-val{font-size:16px;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums;
-  color:var(--tx);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .saldo-bar .metric .m-val{font-size:clamp(12px,1.35vw,15px);font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  color:var(--tx);line-height:1.2;white-space:nowrap;overflow:visible;text-overflow:clip}
  .saldo-bar .metric.up .m-val{color:var(--up)}
  .saldo-bar .metric.down .m-val{color:var(--down)}
  .saldo-bar .metric.up{border-color:rgba(61,214,140,.28);background:rgba(61,214,140,.06)}
  .saldo-bar .metric.down{border-color:rgba(255,107,122,.28);background:rgba(255,107,122,.06)}
+ .saldo-bar .metric-kas{position:relative}
+ .saldo-bar .metric-kas .m-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;min-height:14px}
+ .saldo-bar .metric-kas .m-label{margin:0}
+ .pay-btn{flex:0 0 auto;margin:-2px -2px 0 0;padding:3px 8px;min-height:22px;border:1px solid rgba(75,156,245,.35);border-radius:8px;
+  background:rgba(75,156,245,.08);color:var(--info);font-size:10px;font-weight:700;letter-spacing:.02em;
+  cursor:pointer;line-height:1.2;transition:border-color .15s,color .15s,background .15s;white-space:nowrap}
+ .pay-btn:hover,.pay-btn:focus-visible{border-color:var(--info);color:var(--tx);outline:none;background:rgba(75,156,245,.16)}
+ .pay-btn:disabled{opacity:.45;cursor:not-allowed}
+ .pay-btn.busy{opacity:.7;pointer-events:none}
+ .saldo-bar .metric-kas .m-sub{display:block;margin-top:6px;font-size:10px;color:var(--mute);font-weight:600;letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+ .saldo-bar .metric-kas .m-sub b{color:var(--dim);font-weight:700}
+ .saldo-bar .metric-kas.flash-ok{border-color:rgba(61,214,140,.4);background:rgba(61,214,140,.08)}
+ .toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(12px);
+  z-index:40;padding:10px 14px;border-radius:12px;border:1px solid var(--line2);background:rgba(12,18,25,.96);
+  color:var(--tx);font-size:13px;font-weight:650;box-shadow:var(--shadow);opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;max-width:min(92vw,420px);text-align:center;backdrop-filter:blur(10px)}
+ .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+ .toast.ok{border-color:rgba(61,214,140,.35)}
+ .toast.warn{border-color:rgba(230,180,80,.35)}
  main{padding:14px var(--padr) 8px var(--pad);max-width:760px;margin:0 auto}
  .hero{display:grid;gap:16px;margin:4px 0 14px}
  @media(min-width:720px){.hero{grid-template-columns:200px 1fr;align-items:center;gap:20px}}
  .kicker{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.1em;font-weight:700}
- .hero h1{margin:6px 0 0;font-size:clamp(24px,5vw,30px);letter-spacing:-.045em;line-height:1.05;font-weight:780}
- .updated{margin-top:8px;font-size:12px;color:var(--dim)}
+ .hero h1{margin:4px 0 0;font-size:15px;letter-spacing:.01em;line-height:1.3;font-weight:600;color:var(--dim)}
+ .updated{margin-top:6px;font-size:12px;color:var(--mute)}
  .scope{position:relative;width:min(200px,62vw);aspect-ratio:1;margin:0 auto;
-  border-radius:50%;background:radial-gradient(circle at center,#06241c 0%,#041018 55%,#02060c 100%);
-  border:1px solid #1a3f38;box-shadow:inset 0 0 48px rgba(92,225,255,.1),0 0 36px rgba(92,225,255,.06),var(--shadow);
+  border-radius:50%;background:radial-gradient(circle at center,#0a1520 0%,#071018 55%,#05070b 100%);
+  border:1px solid var(--line2);box-shadow:inset 0 0 40px rgba(75,156,245,.06),var(--shadow);
   overflow:hidden}
- .scope::before{content:"";position:absolute;inset:12%;border:1px solid rgba(92,225,255,.16);border-radius:50%}
- .scope::after{content:"";position:absolute;inset:28%;border:1px solid rgba(92,225,255,.12);border-radius:50%}
- .scope .crossx,.scope .crossy{position:absolute;background:rgba(92,225,255,.1)}
+ .scope::before{content:"";position:absolute;inset:12%;border:1px solid rgba(75,156,245,.14);border-radius:50%}
+ .scope::after{content:"";position:absolute;inset:28%;border:1px solid rgba(75,156,245,.1);border-radius:50%}
+ .scope .crossx,.scope .crossy{position:absolute;background:rgba(75,156,245,.12)}
  .scope .crossx{left:0;right:0;top:50%;height:1px}
  .scope .crossy{top:0;bottom:0;left:50%;width:1px}
  .sweep,.scope .crossx,.scope .crossy{pointer-events:none}
- .sweep{position:absolute;inset:0;background:conic-gradient(from 0deg, transparent 0deg, transparent 280deg, rgba(92,225,255,.0) 300deg, rgba(92,225,255,.38) 360deg);
+ .sweep{position:absolute;inset:0;background:conic-gradient(from 0deg, transparent 0deg, transparent 280deg, rgba(75,156,245,.0) 300deg, rgba(75,156,245,.28) 360deg);
   animation:spin 2.8s linear infinite;transform-origin:center}
  @keyframes spin{to{transform:rotate(360deg)}}
- .blip{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
-  background:var(--accent);box-shadow:0 0 12px var(--accent);animation:pulse 1.6s ease-in-out infinite;
+ .blip{position:absolute;width:11px;height:11px;margin:-5px 0 0 -5px;border-radius:50%;
+  background:var(--info);box-shadow:0 0 0 2px rgba(5,7,11,.85),0 0 8px rgba(75,156,245,.35);animation:pulse 1.6s ease-in-out infinite;
   cursor:pointer;z-index:2;touch-action:manipulation;border:0;padding:0}
- .blip.warn{background:var(--warn);box-shadow:0 0 12px var(--warn)}
- .blip.danger{background:var(--down);box-shadow:0 0 12px var(--down)}
+ .blip.warn{background:var(--warn);box-shadow:0 0 0 2px rgba(5,7,11,.85),0 0 8px rgba(230,180,80,.35)}
+ .blip.danger{background:var(--down);box-shadow:0 0 0 2px rgba(5,7,11,.85),0 0 8px rgba(255,107,122,.35)}
  .blip:hover,.blip:focus-visible{transform:scale(1.7);outline:none;z-index:4}
  .blip.selected{animation:none;transform:scale(1.55);
   box-shadow:0 0 0 2px #05070b,0 0 0 4px #fff,0 0 16px currentColor}
@@ -404,9 +445,11 @@ INDEX_HTML = """<!doctype html>
  .tip.on{opacity:1}
  .tip b{display:block;font-size:14px;letter-spacing:-.02em}
  .tip span{color:var(--dim)}
- .pick{margin-top:12px;padding:12px 14px;background:linear-gradient(180deg,rgba(92,225,255,.07),rgba(92,225,255,.02));
-  border:1px solid #1b3d36;border-radius:var(--r);min-height:58px}
- .pick .empty{margin:0;padding:4px 0}
+ .pick{margin-top:12px;padding:12px 14px;background:var(--surf);border:1px solid var(--line);
+  border-radius:var(--r);min-height:58px}
+ .pick .empty{margin:0;padding:4px 0;color:var(--dim)}
+ .pick .sym{font-size:15px}
+ .pick .meta{margin-top:6px}
  .card{background:linear-gradient(180deg,var(--surf2),var(--surf));border:1px solid var(--line);
   border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
  .card h2{margin:0;font-size:12px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
@@ -421,10 +464,10 @@ INDEX_HTML = """<!doctype html>
  .radar-list{display:flex;flex-direction:column;gap:8px}
  .rcard{display:grid;grid-template-columns:1fr auto;gap:8px 12px;padding:12px 12px;
   border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.16);
-  cursor:pointer;transition:background .15s,border-color .15s,transform .15s;outline:none}
- .rcard:hover{background:rgba(92,225,255,.05);border-color:var(--line2)}
- .rcard.selected{background:rgba(92,225,255,.1);border-color:#2a5a55;box-shadow:inset 3px 0 0 var(--accent)}
- .rcard:focus-visible{border-color:var(--accent)}
+  cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s;outline:none}
+ .rcard:hover{background:rgba(255,255,255,.03);border-color:var(--line2)}
+ .rcard.selected{background:rgba(75,156,245,.07);border-color:rgba(75,156,245,.32);box-shadow:inset 3px 0 0 var(--info)}
+ .rcard:focus-visible{border-color:var(--info);box-shadow:0 0 0 2px rgba(75,156,245,.25)}
  .sym{font-size:16px;font-weight:750;letter-spacing:-.03em}
  .chain{font-size:11px;color:var(--mute);margin-left:6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
  .risk{font-size:11px;color:var(--dim);margin-top:4px;font-weight:600}
@@ -443,7 +486,7 @@ INDEX_HTML = """<!doctype html>
  @keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
  .botops{margin:0 0 12px;padding:14px;background:linear-gradient(180deg,var(--surf2),var(--surf));
   border:1px solid var(--line);border-radius:var(--r);position:relative;overflow:hidden;box-shadow:var(--shadow)}
- .botops::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(92,225,255,.045),transparent);
+ .botops::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(75,156,245,.03),transparent);
   transform:translateX(-100%);animation:opswipe 4.5s ease-in-out infinite;pointer-events:none}
  @keyframes opswipe{0%,100%{transform:translateX(-100%)}50%{transform:translateX(100%)}}
  .ops-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;position:relative}
@@ -454,7 +497,7 @@ INDEX_HTML = """<!doctype html>
  .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;position:relative}
  .step{padding:10px 6px;text-align:center;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;
   color:var(--mute);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:10px;transition:all .25s}
- .step.on{color:var(--accent);border-color:#2a5a55;background:rgba(92,225,255,.1);box-shadow:0 0 14px rgba(92,225,255,.12)}
+ .step.on{color:var(--info);border-color:rgba(75,156,245,.35);background:rgba(75,156,245,.08)}
  .step.done{color:var(--up);border-color:#1e4a38}
  .step.skip{color:var(--warn);border-color:#4a3a18}
  .feed{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;
@@ -488,11 +531,12 @@ INDEX_HTML = """<!doctype html>
   .badges{gap:8px;font-size:10px}
   .saldo-bar{flex-direction:column;align-items:stretch;gap:12px;padding:10px 0 12px}
   .saldo-bar .metrics{grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;flex:none;width:100%;gap:8px}
-  .saldo-bar .metric{padding:10px 12px;min-height:64px}
-  .saldo-bar .metric .m-val{font-size:17px}
+  .saldo-bar .metric{padding:10px 12px;min-height:64px;overflow:visible}
+  .saldo-bar .metric-kas .m-top{flex-wrap:wrap}
+  .saldo-bar .metric .m-val{font-size:clamp(12px,3.4vw,14px)}
   .saldo-bar .amt{font-size:clamp(34px,10vw,42px)}
   .hero{margin:2px 0 12px;gap:12px}
-  .hero h1{font-size:clamp(22px,6.5vw,26px)}
+  .hero h1{font-size:15px}
   .scope{width:min(180px,58vw)}
   .pick{padding:10px 12px}
   .card{padding:12px;margin-bottom:10px;border-radius:12px}
@@ -517,7 +561,7 @@ INDEX_HTML = """<!doctype html>
   .saldo-bar .amt{font-size:44px}
   .saldo-bar .metrics{flex-basis:480px;max-width:520px;gap:10px}
   .saldo-bar .metric{padding:12px 14px;border-radius:14px}
-  .saldo-bar .metric .m-val{font-size:18px}
+  .saldo-bar .metric .m-val{font-size:clamp(12px,1.2vw,15px)}
   .hero{grid-template-columns:220px 1fr;gap:24px;margin-bottom:18px}
   .scope{width:220px;margin:0}
   .chart-wrap{height:240px}
@@ -552,20 +596,24 @@ INDEX_HTML = """<!doctype html>
       <span id="health"><i class="dot" id="hdot"></i><span id="htext">…</span></span>
     </div>
   </div>
-  <div class="saldo-bar" id="saldo" title="Papieren equity = kas + open posities">
+  <div class="saldo-bar" id="saldo" title="Papieren trading-equity = kas + open posities (uitbetaald staat apart)">
     <div class="eq-hero">
       <div class="label"><i class="live-dot" aria-hidden="true"></i>Equity</div>
       <div class="amt" id="saldo-amt">€…</div>
-      <div class="eq-sub">papier · live</div>
+      <div class="eq-sub">papier · trading (ex banked)</div>
     </div>
     <div class="metrics" role="group" aria-label="Kerncijfers">
       <div class="metric" id="metric-pnl">
         <span class="m-label">Rendement</span>
         <b class="m-val" id="saldo-pnl">—</b>
       </div>
-      <div class="metric">
-        <span class="m-label">Kas</span>
+      <div class="metric metric-kas" id="metric-kas">
+        <div class="m-top">
+          <span class="m-label">Kas</span>
+          <button type="button" class="pay-btn" id="btn-payout" title="Papieren uitbetaling uit kas">Uitbetalen</button>
+        </div>
         <b class="m-val" id="saldo-cash">—</b>
+        <span class="m-sub" id="saldo-banked" hidden></span>
       </div>
       <div class="metric">
         <span class="m-label">In posities</span>
@@ -587,8 +635,8 @@ INDEX_HTML = """<!doctype html>
       <div class="tip" id="tip" role="status"></div>
     </div>
     <div>
-      <div class="kicker">Live radar · tik een blip</div>
-      <h1>Kandidaten nu</h1>
+      <div class="kicker">Radar</div>
+      <h1>Kandidaten</h1>
       <div class="updated" id="rd-updated">bezig met scannen…</div>
       <div class="pick" id="pick"><p class="empty">Tik een blip of een rij voor details.</p></div>
     </div>
@@ -631,10 +679,12 @@ INDEX_HTML = """<!doctype html>
   </section>
   </div>
 </main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <footer>Geen financieel advies. Micro-caps gaan meestal naar nul. Deze site handelt nooit echt.</footer>
 <script>
-const eur=n=>'€'+Number(n||0).toFixed(2);
-const pct=n=>(Number(n)>=0?'+':'')+Number(n||0).toFixed(2)+'%';
+const nlNum=(n,d=2)=>Number(n||0).toLocaleString('nl-NL',{minimumFractionDigits:d,maximumFractionDigits:d});
+const eur=n=>'€'+nlNum(n,2);
+const pct=n=>(Number(n)>=0?'+':'')+nlNum(n,2)+'%';
 const cls=n=>Number(n)>=0?'up':'down';
 const money=n=>'$'+Math.round(Number(n||0)).toLocaleString('nl-NL');
 function riskClass(risk){
@@ -661,7 +711,7 @@ async function get(url, ms){
 }
 let radarRows = [];
 let selectedIdx = -1;
-let portfolioSnap = {trades:0, equity_eur:20, cash_eur:20, open_posities:0};
+let portfolioSnap = {trades:0, equity_eur:20, cash_eur:20, banked_eur:0, open_posities:0};
 let opsTimer = null;
 let opsTick = 0;
 function setPipe(active){
@@ -681,6 +731,40 @@ function pushFeed(html, cls){
   line.innerHTML = html;
   feed.prepend(line);
   while(feed.children.length > 6) feed.lastChild.remove();
+}
+let toastTimer = null;
+function showToast(msg, kind){
+  const el = document.getElementById('toast');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'toast on'+(kind?' '+kind:'');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.className = 'toast'; }, 3200);
+}
+async function doPayout(){
+  const btn = document.getElementById('btn-payout');
+  const tile = document.getElementById('metric-kas');
+  if(btn){ btn.classList.add('busy'); btn.disabled = true; }
+  try{
+    const r = await get('/api/payout', 12000);
+    if(r.portfolio) paintPortfolio(r.portfolio);
+    if(r.ok){
+      showToast(r.melding || ('Uitbetaald '+eur(r.moved_eur)), 'ok');
+      pushFeed(`UITBETALING <b>${eur(r.moved_eur)}</b> · kas → banked (papier)`, 'ok');
+      if(tile){ tile.classList.add('flash-ok'); setTimeout(()=>tile.classList.remove('flash-ok'), 900); }
+    } else {
+      showToast(r.melding || 'Geen kas om uit te betalen.', 'warn');
+      pushFeed('uitbetaling skip · geen kas', 'warn');
+    }
+  } catch(e){
+    showToast('Uitbetalen mislukt (papier).', 'warn');
+  } finally {
+    if(btn){
+      btn.classList.remove('busy');
+      const can = Number((portfolioSnap&&portfolioSnap.cash_eur)||0) > 0.009;
+      btn.disabled = !can;
+    }
+  }
 }
 function paperDecision(k){
   const score = Number(k.score)||0;
@@ -808,6 +892,8 @@ function paintSaldo(pf){
   const inv = document.getElementById('saldo-invested');
   const start = document.getElementById('saldo-start');
   const tile = document.getElementById('metric-pnl');
+  const bankedEl = document.getElementById('saldo-banked');
+  const payBtn = document.getElementById('btn-payout');
   if(!amt) return;
   const next = eur(pf.equity_eur);
   if(amt.textContent && amt.textContent!=='€…' && amt.textContent!==next){
@@ -823,6 +909,21 @@ function paintSaldo(pf){
     else if(r<-0.009) tile.classList.add('down');
   }
   if(cash) cash.textContent = eur(pf.cash_eur);
+  const banked = Number(pf.banked_eur||0);
+  if(bankedEl){
+    if(banked > 0.009){
+      bankedEl.hidden = false;
+      bankedEl.innerHTML = 'uitbetaald <b>'+eur(banked)+'</b>';
+    } else {
+      bankedEl.hidden = true;
+      bankedEl.textContent = '';
+    }
+  }
+  if(payBtn){
+    const can = Number(pf.cash_eur||0) > 0.009;
+    payBtn.disabled = !can;
+    payBtn.title = can ? 'Papieren uitbetaling uit kas' : 'Geen kas om uit te betalen';
+  }
   const invested = Math.max(0, Number(pf.equity_eur||0) - Number(pf.cash_eur||0));
   if(inv) inv.textContent = eur(invested);
   if(start) start.textContent = eur(pf.start_eur);
@@ -977,7 +1078,7 @@ function paintChart(data, opts){
       ctx.lineTo(x0+(x1-x0)*frac, y0+(y1-y0)*frac);
     }
     // glow
-    ctx.strokeStyle='rgba(92,225,255,.25)'; ctx.lineWidth=6; ctx.stroke();
+    ctx.strokeStyle='rgba(75,156,245,.25)'; ctx.lineWidth=6; ctx.stroke();
     ctx.beginPath();
     for(let i=0;i<nShow;i++){
       const x=xAt(i), y=yAt(Number(pts[i].equity));
@@ -1000,7 +1101,7 @@ function paintChart(data, opts){
     const pulse = 0.5 + 0.5*Math.sin(now/180);
     ctx.beginPath();
     ctx.arc(hx, hy, 3+pulse*2, 0, Math.PI*2);
-    ctx.fillStyle='rgba(92,225,255,'+(0.55+pulse*0.35)+')';
+    ctx.fillStyle='rgba(75,156,245,'+(0.55+pulse*0.35)+')';
     ctx.fill();
     // markers appear after line reaches them
     const revealX = hx;
@@ -1024,8 +1125,8 @@ function paintChart(data, opts){
     });
     // y labels
     ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
-    ctx.fillText('€'+max.toFixed(0), 4, padT+10);
-    ctx.fillText('€'+min.toFixed(0), 4, padT+H);
+    ctx.fillText('€'+Number(max).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+10);
+    ctx.fillText('€'+Number(min).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+H);
     if(p < 1){
       window._chartAnim = requestAnimationFrame(frame);
     } else {
@@ -1037,14 +1138,14 @@ function paintChart(data, opts){
         for(let g=0;g<4;g++){ const y=padT+H*g/3; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+W,y); ctx.stroke(); }
         ctx.beginPath();
         pts.forEach((pt,i)=>{ const x=xAt(i), y=yAt(Number(pt.equity)); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
-        ctx.strokeStyle='rgba(92,225,255,.25)'; ctx.lineWidth=6; ctx.stroke();
+        ctx.strokeStyle='rgba(75,156,245,.25)'; ctx.lineWidth=6; ctx.stroke();
         ctx.beginPath();
         pts.forEach((pt,i)=>{ const x=xAt(i), y=yAt(Number(pt.equity)); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
         ctx.strokeStyle='#5ce1ff'; ctx.lineWidth=2; ctx.stroke();
         const xh=xAt(pts.length-1), yh=yAt(Number(pts[pts.length-1].equity));
         const pul = 0.5 + 0.5*Math.sin(ts/180);
         ctx.beginPath(); ctx.arc(xh,yh,3+pul*2,0,Math.PI*2);
-        ctx.fillStyle='rgba(92,225,255,'+(0.55+pul*0.35)+')'; ctx.fill();
+        ctx.fillStyle='rgba(75,156,245,'+(0.55+pul*0.35)+')'; ctx.fill();
         markPts.forEach(mp=>{
           ctx.beginPath();
           if(mp.side==='BUY'){ ctx.fillStyle='#3dd68c'; ctx.moveTo(mp.x,mp.y-8); ctx.lineTo(mp.x-6,mp.y+4); ctx.lineTo(mp.x+6,mp.y+4); }
@@ -1052,8 +1153,8 @@ function paintChart(data, opts){
           ctx.closePath(); ctx.fill();
         });
         ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
-        ctx.fillText('€'+max.toFixed(0), 4, padT+10);
-        ctx.fillText('€'+min.toFixed(0), 4, padT+H);
+        ctx.fillText('€'+Number(max).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+10);
+        ctx.fillText('€'+Number(min).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+H);
         window._chartAnim = requestAnimationFrame(pulseOnly);
       }
       if(!reduce) window._chartAnim = requestAnimationFrame(pulseOnly);
@@ -1089,7 +1190,7 @@ async function load(){
   get('/api/hunt', 25000).then(h=>{
     if(!h || !h.gekocht) return;
     (h.gekocht||[]).forEach(g=>{
-      pushFeed(`PAPER BUY <b>${esc(g.symbol)}</b> · €${Number(g.cost_eur||0).toFixed(2)} · score ${esc(g.score)}`, 'buy');
+      pushFeed(`PAPER BUY <b>${esc(g.symbol)}</b> · ${eur(g.cost_eur)} · score ${esc(g.score)}`, 'buy');
     });
     if((h.gekocht||[]).length){
       const st=document.getElementById('ops-state');
@@ -1098,6 +1199,7 @@ async function load(){
     }
   }).catch(()=>{});
 }
+document.getElementById('btn-payout')?.addEventListener('click', ()=>{ doPayout(); });
 document.getElementById('blips').addEventListener('click', e=>{
   const b = e.target.closest('.blip');
   if(!b) return;
@@ -1168,7 +1270,7 @@ startLiveStream();
 setInterval(refreshLive, 15000);
 setInterval(()=>get('/api/hyper', 40000).then(h=>{
   if(!h) return;
-  (h.exits||[]).forEach(e=>pushFeed(`SELL <b>${esc(e.symbol)}</b> · ${esc(e.reason)} · €${Number(e.pnl||0).toFixed(2)}`, 'sell'));
+  (h.exits||[]).forEach(e=>pushFeed(`SELL <b>${esc(e.symbol)}</b> · ${esc(e.reason)} · ${eur(e.pnl)}`, 'sell'));
   (h.rotates||[]).forEach(r=>pushFeed(`ROTATE <b>${esc(r.sold)}</b> → <b>${esc(r.to)}</b>`, 'warn'));
   (h.buys||[]).forEach(s=>pushFeed(`PAPER BUY <b>${esc(s)}</b>`, 'buy'));
   refreshLive();
@@ -1219,6 +1321,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(api_chart())
             elif path == "/api/hyper":
                 self._json(api_hyper())
+            elif path == "/api/payout":
+                from urllib.parse import parse_qs
+                qs = parse_qs(urlparse(self.path).query)
+                amt = None
+                if qs.get("amount"):
+                    try:
+                        amt = float(qs["amount"][0])
+                    except (TypeError, ValueError):
+                        amt = None
+                self._json(api_payout(amt))
             elif path == "/api/health":
                 self._json({"ok": True, "online": _online()})
             elif path == "/api/live":
