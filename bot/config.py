@@ -45,3 +45,8 @@ TICK_INTERVAL_SEC = 45
 
 # Max toegestane mark-prijsafwijking t.o.v. entry (voorkomt verkeerde ticker-match)
 MAX_MARK_JUMP_PCT = 80.0
+
+# Paper fill policy: when an exit threshold fires, fill at the threshold price
+# (not the noisy gap mark). Still apply FEE_PCT + slippage after. Dual-ledger
+# shadow gap-mark PnL is logged for comparison. PAPER ONLY.
+FILL_AT_TRIGGER = True
