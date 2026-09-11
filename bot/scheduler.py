@@ -11,6 +11,8 @@ Voorbeeld:
 
 Op macOS: zie deploy/nl.cryptodokter.paperbot.plist voor launchd.
 Logs: data/scheduler.log (geroteerd).
+
+Single-writer: neemt hyper_instance.lock. Niet naast `python -m web.server` of cd_dash.
 """
 from __future__ import annotations
 
@@ -24,6 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 from bot import run_bot
+from bot.locks import HyperInstanceGuard
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 LOG_FILE = DATA_DIR / "scheduler.log"
@@ -117,8 +120,15 @@ def loop(
 ) -> None:
     """Foreground-lus: periodiek tick + scan. Ctrl-C stopt netjes."""
     log = logger or setup_logging()
+    guard = HyperInstanceGuard(owner="bot.scheduler")
+    if not guard.try_acquire():
+        log.error(
+            "Andere hyper-instance actief — scheduler stopt (geen tweede writer). "
+            "Stop web.server/cd_dash of gebruik die als enige forever-loop."
+        )
+        return
     log.info(
-        "Scheduler gestart (tick elke %ss, scan elke %ss). Papier-only.",
+        "Scheduler gestart (tick elke %ss, scan elke %ss). Papier-only. single-writer.",
         tick_every,
         scan_every,
     )
@@ -141,6 +151,8 @@ def loop(
             time.sleep(min(30, tick_every, scan_every))
     except KeyboardInterrupt:
         log.info("Scheduler gestopt door gebruiker (%s UTC).", _utc_now().isoformat())
+    finally:
+        guard.release()
 
 
 def main(argv: Optional[list] = None) -> int:
