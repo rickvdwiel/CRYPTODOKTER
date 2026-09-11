@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -45,6 +45,7 @@ class Position:
     high_price: float          # hoogste geziene prijs (voor trailing stop)
     note: str = ""
     address: str = ""          # token contract — verplicht voor eerlijke mark-prijzen
+    partial_taken: bool = False  # True na één partial-TP; voorkomt herhaalde scale-outs
 
     def value_eur(self, price: float) -> float:
         return self.qty * price
@@ -63,6 +64,7 @@ class Portfolio:
     realized_pnl_eur: float = 0.0
     fees_paid_eur: float = 0.0
     trades: int = 0
+    banked_eur: float = 0.0  # papieren uitbetaling — niet opnieuw inzetbaar
 
     # ---------- persistentie ----------
     @classmethod
@@ -80,9 +82,15 @@ class Portfolio:
             realized_pnl_eur=float(raw.get("realized_pnl_eur", 0.0)),
             fees_paid_eur=float(raw.get("fees_paid_eur", 0.0)),
             trades=int(raw.get("trades", 0)),
+            banked_eur=float(raw.get("banked_eur", 0.0)),
         )
         for sym, p in (raw.get("positions") or {}).items():
-            pf.positions[sym] = Position(**p)
+            # tolerant load: only known Position fields (partial_taken default False)
+            allowed = {f.name for f in fields(Position)}
+            clean = {k: v for k, v in (p or {}).items() if k in allowed}
+            if "partial_taken" in clean:
+                clean["partial_taken"] = bool(clean["partial_taken"])
+            pf.positions[sym] = Position(**clean)
         return pf
 
     def save(self, path: Optional[Path] = None) -> Path:
@@ -95,6 +103,7 @@ class Portfolio:
             "realized_pnl_eur": round(self.realized_pnl_eur, 4),
             "fees_paid_eur": round(self.fees_paid_eur, 4),
             "trades": self.trades,
+            "banked_eur": round(self.banked_eur, 4),
             "positions": {s: asdict(p) for s, p in self.positions.items()},
         }
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -136,7 +145,9 @@ class Portfolio:
             return None
         budget = budget_eur if budget_eur is not None else (
             self.start_eur * config.POSITION_SIZE_PCT / 100.0)
-        budget = min(budget, self.cash_eur)
+        floor = float(getattr(config, "MIN_CASH_FLOOR_EUR", 0.0) or 0.0)
+        spendable = max(0.0, self.cash_eur - floor)
+        budget = min(budget, spendable)
         if budget < config.MIN_POSITION_EUR:
             return None
 
@@ -180,6 +191,79 @@ class Portfolio:
         self.log_equity({}, event="SELL", symbol=symbol)
         return round(pnl, 4)
 
+    def sell_partial(self, symbol: str, price_eur: float,
+                     fraction: Optional[float] = None, reason: str = "partial-tp",
+                     liquidity_usd: Optional[float] = None,
+                     bank_profit: bool = True) -> Optional[float]:
+        """Scale-out: verkoop een fractie; rest blijft open. Winst kan → banked (stuck cash).
+
+        Geeft gerealiseerde P&L van het verkochte deel in EUR, of None als geweigerd.
+        """
+        symbol = symbol.upper()
+        pos = self.positions.get(symbol)
+        if pos is None or price_eur <= 0:
+            return None
+        frac = fraction if fraction is not None else float(
+            getattr(config, "PARTIAL_TP_FRACTION", 0.45))
+        frac = max(0.0, min(1.0, float(frac)))
+        if frac <= 0.0:
+            return None
+        if frac >= 0.999:
+            # bijna alles → full sell
+            return self.sell(symbol, price_eur, reason=reason, liquidity_usd=liquidity_usd)
+
+        sell_qty = pos.qty * frac
+        sell_cost = pos.cost_eur * frac
+        if sell_qty <= 0 or sell_cost < 0:
+            return None
+
+        fill = price_eur * (1 - self.slippage_pct(liquidity_usd) / 100.0)
+        gross = sell_qty * fill
+        fee = gross * config.FEE_PCT / 100.0
+        net = gross - fee
+        pnl = net - sell_cost
+
+        pos.qty = pos.qty - sell_qty
+        pos.cost_eur = pos.cost_eur - sell_cost
+        pos.partial_taken = True
+        if pos.qty <= 1e-12 or pos.cost_eur <= 1e-8:
+            # afronding: rest te klein → full close
+            del self.positions[symbol]
+        else:
+            self.positions[symbol] = pos
+
+        self.cash_eur += net
+        self.fees_paid_eur += fee
+        self.realized_pnl_eur += pnl
+        self.trades += 1
+        self._log("SELL_PARTIAL", symbol, sell_qty, fill, net, fee, pnl, reason)
+        self.log_equity({symbol: fill}, event="SELL_PARTIAL", symbol=symbol)
+
+        # Scale-out winst → banked zodat hunt niet meteen alles herinzet
+        if bank_profit and pnl > 0:
+            bank_frac = float(getattr(config, "PARTIAL_TP_BANK_FRACTION", 1.0) or 0.0)
+            bank_amt = min(pnl * max(0.0, min(1.0, bank_frac)), self.cash_eur)
+            if bank_amt > 0:
+                self.payout(bank_amt)
+
+        return round(pnl, 4)
+
+    def payout(self, amount: Optional[float] = None) -> float:
+        """Papieren uitbetaling: kas → banked. Niet opnieuw inzetbaar voor trades."""
+        if self.cash_eur <= 0:
+            return 0.0
+        if amount is None:
+            move = self.cash_eur
+        else:
+            move = min(max(0.0, float(amount)), self.cash_eur)
+        if move <= 0:
+            return 0.0
+        self.cash_eur = round(self.cash_eur - move, 4)
+        self.banked_eur = round(self.banked_eur + move, 4)
+        self._log("PAYOUT", "BANK", 0.0, 0.0, move, 0.0, 0.0, "papier uitbetaling")
+        self.log_equity({}, event="PAYOUT", symbol="")
+        return round(move, 4)
+
     # ---------- risicobewaking ----------
     def check_exits(self, prices: dict) -> list:
         """Loop posities langs met {symbol: prijs_eur} en verkoop wat moet.
@@ -208,10 +292,17 @@ class Portfolio:
             age_days = age_min / (60.0 * 24.0)
 
             reason = None
+            partial = False
+            partial_pct = float(getattr(config, "PARTIAL_TP_PCT", 4.5))
             if pnl_pct <= config.STOP_LOSS_PCT:
                 reason = f"stop-loss ({pnl_pct}%)"
             elif pnl_pct >= config.TAKE_PROFIT_PCT:
                 reason = f"take-profit ({pnl_pct}%)"
+            elif (not getattr(pos, "partial_taken", False)
+                  and pnl_pct >= partial_pct):
+                frac_pct = int(round(float(getattr(config, "PARTIAL_TP_FRACTION", 0.45)) * 100))
+                reason = f"partial-tp ({pnl_pct}% → {frac_pct}%)"
+                partial = True
             elif pnl_pct > 0 and drop_from_high <= config.TRAILING_STOP_PCT:
                 reason = f"trailing-stop ({round(drop_from_high, 1)}% vanaf top)"
             elif age_min >= getattr(config, "MAX_HOLD_MINUTES", 24 * 60):
@@ -220,7 +311,10 @@ class Portfolio:
                 reason = f"te lang stil ({int(age_days)} dagen)"
 
             if reason:
-                pnl = self.sell(symbol, price, reason=reason)
+                if partial:
+                    pnl = self.sell_partial(symbol, price, reason=reason)
+                else:
+                    pnl = self.sell(symbol, price, reason=reason)
                 done.append((symbol, reason, pnl))
         return done
 
@@ -235,11 +329,16 @@ class Portfolio:
     def summary(self, prices: Optional[dict] = None) -> dict:
         prices = prices or {}
         eq = self.equity_eur(prices)
+        banked = round(self.banked_eur, 2)
+        total = round(eq + banked, 2)
         return {
             "cash_eur": round(self.cash_eur, 2),
+            "banked_eur": banked,
             "equity_eur": eq,
+            "total_eur": total,
             "start_eur": self.start_eur,
-            "rendement_pct": round((eq - self.start_eur) / self.start_eur * 100.0, 2)
+            # rendement over totale paper-waarde (trading + uitbetaald)
+            "rendement_pct": round((total - self.start_eur) / self.start_eur * 100.0, 2)
             if self.start_eur else 0.0,
             "open_posities": len(self.positions),
             "realized_pnl_eur": round(self.realized_pnl_eur, 2),
@@ -267,7 +366,9 @@ def print_summary(pf: Portfolio, prices: Optional[dict] = None) -> None:
     print("  PAPIEREN PORTEFEUILLE (virtueel, geen echt geld)")
     print("=" * 62)
     print(f"  Kas        : €{s['cash_eur']:.2f}")
+    print(f"  Banked     : €{s['banked_eur']:.2f}  (uitbetaald / stuck cash)")
     print(f"  Waarde     : €{s['equity_eur']:.2f}  (start €{s['start_eur']:.2f})")
+    print(f"  Totaal     : €{s['total_eur']:.2f}")
     print(f"  Rendement  : {s['rendement_pct']:+.2f}%")
     print(f"  Gerealiseerd: €{s['realized_pnl_eur']:+.2f}   fees: €{s['fees_paid_eur']:.2f}")
     print(f"  Trades     : {s['trades']}   open posities: {s['open_posities']}")
