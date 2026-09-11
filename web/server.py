@@ -9,6 +9,9 @@ Toont: papieren portefeuille, radar-kandidaten (met risico-labels) en de
 watchlist. Scans worden gecachet zodat de gratis bronnen niet worden gehamerd.
 
 Alleen lezen + papier: dit dashboard plaatst nooit een echte order.
+
+Single hyper writer: deze server neemt hyper_instance.lock voor de achtergrond-loop.
+Draai NIET tegelijk `python -m bot.scheduler` of een tweede dashboard op dezelfde data/.
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ from urllib.parse import urlparse
 from bot.portfolio import Portfolio, TRADES_FILE, EQUITY_FILE
 from bot import config as bot_config
 from bot import run_bot as paper_bot
+from bot.locks import HyperInstanceGuard
 from radar import config as radar_config
 from radar import signals
 from radar.run_radar import _online, analyze_token
@@ -268,8 +272,19 @@ def api_chart() -> dict:
     # seed point if empty
     pf = Portfolio.load()
     if not points:
-        eq = pf.equity_eur({s: p.entry_price for s, p in pf.positions.items()})
-        points = [{"t": "start", "equity": eq, "cash": pf.cash_eur, "event": "seed", "symbol": "", "open": len(pf.positions)}]
+        prices = {s: p.entry_price for s, p in pf.positions.items()}
+        eq = pf.equity_eur(prices)
+        banked = round(float(pf.banked_eur or 0.0), 4)
+        points = [{
+            "t": "start",
+            "equity": eq,
+            "cash": pf.cash_eur,
+            "banked_eur": banked,
+            "total_eur": round(eq + banked, 4),
+            "event": "seed",
+            "symbol": "",
+            "open": len(pf.positions),
+        }]
     return {"points": points, "markers": markers[-200:], "paper_only": True}
 
 
@@ -311,6 +326,48 @@ def api_payout(amount: Optional[float] = None) -> dict:
     }
 
 
+def api_unpayout(amount: Optional[float] = None) -> dict:
+    """Recall: banked_eur → cash_eur (papier)."""
+    pf = Portfolio.load()
+    moved = pf.unpayout(amount)
+    pf.save()
+    s = api_portfolio()
+    return {
+        "ok": moved > 0,
+        "moved_eur": moved,
+        "cash_eur": s.get("cash_eur"),
+        "banked_eur": s.get("banked_eur"),
+        "total_eur": s.get("total_eur"),
+        "portfolio": s,
+        "melding": (
+            f"UNPAYOUT/recall {moved:.2f} EUR: banked → kas (papier)."
+            if moved > 0 else "Geen banked om terug te boeken."
+        ),
+    }
+
+
+def api_deposit(amount: float = 50.0) -> dict:
+    """Papier storten (Adobe): kas += amount, start_eur mee (bump_start=True)."""
+    pf = Portfolio.load()
+    added = pf.deposit(amount, bump_start=True)
+    pf.save()
+    s = api_portfolio()
+    return {
+        "ok": added > 0,
+        "moved_eur": added,
+        "cash_eur": s.get("cash_eur"),
+        "start_eur": s.get("start_eur"),
+        "deposits_eur": s.get("deposits_eur"),
+        "banked_eur": s.get("banked_eur"),
+        "total_eur": s.get("total_eur"),
+        "portfolio": s,
+        "melding": (
+            f"Gestort +{added:.2f} EUR (papier, start mee)."
+            if added > 0 else "Ongeldig stortbedrag."
+        ),
+    }
+
+
 def api_watchlist() -> dict:
     if not WATCHLIST.exists():
         return {"items": []}
@@ -331,7 +388,7 @@ def api_watchlist() -> dict:
 
 
 INDEX_HTML = """<!doctype html>
-<html lang="nl" translate="no" data-build="spectrum-metrics-2"><head>
+<html lang="nl" translate="no" data-build="spectrum-bart-cash-7"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#06090e">
@@ -339,6 +396,9 @@ INDEX_HTML = """<!doctype html>
 <meta name="google" content="notranslate">
 <meta http-equiv="Cache-Control" content="no-store">
 <title>CryptoDokter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
  :root{
   --bg:#05070b; --surf:#0c1219; --surf2:#101820; --line:#1a2330; --line2:#243041;
@@ -347,6 +407,8 @@ INDEX_HTML = """<!doctype html>
   --pad: max(16px, env(safe-area-inset-left));
   --padr: max(16px, env(safe-area-inset-right));
   --r: 14px; --shadow: 0 8px 28px rgba(0,0,0,.35);
+  --font: "Source Sans 3", "Source Sans Pro", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
  }
  *{box-sizing:border-box}
  html{-webkit-text-size-adjust:100%}
@@ -355,14 +417,16 @@ INDEX_HTML = """<!doctype html>
     radial-gradient(900px 500px at 90% 0%, rgba(61,214,140,.04), transparent 50%),
     var(--bg);
   color:var(--tx);
-  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font:15px/1.45 var(--font);
   padding-bottom:max(28px, env(safe-area-inset-bottom));
-  letter-spacing:-.01em}
+  letter-spacing:-.011em;
+  font-feature-settings:"tnum" 1, "ss01" 1;
+  -webkit-font-smoothing:antialiased}
  header{padding:max(12px, env(safe-area-inset-top)) var(--padr) 0 var(--pad);
   border-bottom:1px solid var(--line);background:rgba(5,7,11,.82);
   position:sticky;top:0;z-index:8;backdrop-filter:blur(16px) saturate(1.2)}
  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:10px}
- .brand{font-size:17px;font-weight:750;letter-spacing:-.04em}
+ .brand{font-size:17px;font-weight:700;letter-spacing:-.03em}
  .brand span{color:var(--accent)}
  .badges{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--dim)}
  .badges .paper{color:var(--paper);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
@@ -375,11 +439,13 @@ INDEX_HTML = """<!doctype html>
   padding:14px 0 16px;border-top:1px solid rgba(28,38,51,.65)}
  .saldo-bar .eq-hero{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-end}
  .saldo-bar .label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mute);font-weight:700}
- .saldo-bar .amt{font-size:clamp(32px,5.5vw,44px);font-weight:780;letter-spacing:-.055em;
+ .saldo-bar .amt{font-size:clamp(30px,5.2vw,40px);font-weight:700;letter-spacing:-.04em;
   font-variant-numeric:tabular-nums;line-height:1;margin-top:8px;transition:color .25s,text-shadow .25s}
  .saldo-bar .amt.flash{color:var(--accent);text-shadow:0 0 12px rgba(75,156,245,.22)}
  .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-right:6px;box-shadow:0 0 8px var(--up);animation:blink 1.2s infinite;vertical-align:middle}
- .saldo-bar .eq-sub{margin-top:8px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.03em}
+ .saldo-bar .eq-sub{margin-top:8px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.02em;line-height:1.35}
+ .saldo-bar .eq-sub b{color:var(--dim);font-weight:700;font-variant-numeric:tabular-nums}
+ .saldo-bar .eq-sub .sep{opacity:.45;margin:0 5px}
  .saldo-bar .metrics{display:grid;grid-template-columns:repeat(4,minmax(118px,1fr));gap:8px;flex:1 1 560px;max-width:620px;min-width:0}
  .saldo-bar .metric{padding:10px 12px;border:1px solid var(--line);border-radius:12px;
   background:rgba(0,0,0,.22);min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:6px;overflow:visible}
@@ -393,16 +459,25 @@ INDEX_HTML = """<!doctype html>
  .saldo-bar .metric-kas{position:relative}
  .saldo-bar .metric-kas .m-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;min-height:14px}
  .saldo-bar .metric-kas .m-label{margin:0}
- .pay-btn{flex:0 0 auto;margin:-2px -2px 0 0;padding:3px 8px;min-height:22px;border:1px solid rgba(75,156,245,.35);border-radius:8px;
-  background:rgba(75,156,245,.08);color:var(--info);font-size:10px;font-weight:700;letter-spacing:.02em;
-  cursor:pointer;line-height:1.2;transition:border-color .15s,color .15s,background .15s;white-space:nowrap}
- .pay-btn:hover,.pay-btn:focus-visible{border-color:var(--info);color:var(--tx);outline:none;background:rgba(75,156,245,.16)}
- .pay-btn:disabled{opacity:.45;cursor:not-allowed}
- .pay-btn.busy{opacity:.7;pointer-events:none}
+ .cash-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+ .pay-btn,.cash-btn{flex:0 0 auto;margin:0;padding:4px 9px;min-height:24px;border:1px solid var(--line2);border-radius:8px;
+  background:rgba(255,255,255,.04);color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.02em;
+  cursor:pointer;line-height:1.2;transition:border-color .15s,color .15s,background .15s;white-space:nowrap;font-family:var(--font)}
+ .pay-btn{border-color:rgba(75,156,245,.35);background:rgba(75,156,245,.08);color:var(--info)}
+ .pay-btn:hover,.pay-btn:focus-visible,.cash-btn:hover,.cash-btn:focus-visible{
+  border-color:var(--info);color:var(--tx);outline:none;background:rgba(75,156,245,.14)}
+ .cash-btn.recall{border-color:rgba(61,214,140,.35);background:rgba(61,214,140,.08);color:var(--up)}
+ .cash-btn.deposit{border-color:rgba(212,175,55,.35);background:rgba(212,175,55,.08);color:var(--paper)}
+ .pay-btn:disabled,.cash-btn:disabled{opacity:.4;cursor:not-allowed}
+ .pay-btn.busy,.cash-btn.busy{opacity:.7;pointer-events:none}
  .saldo-bar .metric-kas .m-sub{display:block;margin-top:6px;font-size:10px;color:var(--mute);font-weight:600;letter-spacing:.02em;
   font-variant-numeric:tabular-nums;line-height:1.2}
  .saldo-bar .metric-kas .m-sub b{color:var(--dim);font-weight:700}
  .saldo-bar .metric-kas.flash-ok{border-color:rgba(61,214,140,.4);background:rgba(61,214,140,.08)}
+ .cash-panel{margin:0 var(--padr) 0 var(--pad);padding:0 0 12px;border-bottom:1px solid var(--line);
+  background:rgba(5,7,11,.82)}
+ .cash-panel .cash-actions{margin-top:0;justify-content:flex-end}
+ @media(max-width:719px){.cash-panel .cash-actions{justify-content:stretch}.cash-panel .pay-btn,.cash-panel .cash-btn{flex:1 1 auto;text-align:center}}
  .toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(12px);
   z-index:40;padding:10px 14px;border-radius:12px;border:1px solid var(--line2);background:rgba(12,18,25,.96);
   color:var(--tx);font-size:13px;font-weight:650;box-shadow:var(--shadow);opacity:0;pointer-events:none;
@@ -414,8 +489,8 @@ INDEX_HTML = """<!doctype html>
  .hero{display:grid;gap:16px;margin:4px 0 14px}
  @media(min-width:720px){.hero{grid-template-columns:200px 1fr;align-items:center;gap:20px}}
  .kicker{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.1em;font-weight:700}
- .hero h1{margin:4px 0 0;font-size:15px;letter-spacing:.01em;line-height:1.3;font-weight:600;color:var(--dim)}
- .updated{margin-top:6px;font-size:12px;color:var(--mute)}
+ .hero .hero-copy{min-width:0}
+ .updated{margin-top:4px;font-size:12px;color:var(--mute)}
  .scope{position:relative;width:min(200px,62vw);aspect-ratio:1;margin:0 auto;
   border-radius:50%;background:radial-gradient(circle at center,#0a1520 0%,#071018 55%,#05070b 100%);
   border:1px solid var(--line2);box-shadow:inset 0 0 40px rgba(75,156,245,.06),var(--shadow);
@@ -456,10 +531,13 @@ INDEX_HTML = """<!doctype html>
  .head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
  .status{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
- @media(min-width:640px){.grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}}
- .kpi{padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.18)}
- .kpi span{color:var(--mute);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
- .kpi b{display:block;font-size:20px;margin-top:6px;letter-spacing:-.04em;font-variant-numeric:tabular-nums;font-weight:750}
+ .pf-kpis{display:flex;flex-direction:column;gap:0;width:100%;min-width:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:rgba(0,0,0,.14)}
+ .kpi{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 12px;
+  border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;min-width:0}
+ .kpi:last-child{border-bottom:0}
+ .kpi span{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;flex:0 0 auto}
+ .kpi b{display:block;font-size:14px;margin-top:0;letter-spacing:-.015em;font-variant-numeric:tabular-nums;font-weight:650;
+  line-height:1.2;white-space:nowrap;text-align:right;overflow:visible;max-width:100%;color:var(--tx)}
  .up{color:var(--up)}.down{color:var(--down)}.dim{color:var(--dim)}
  .radar-list{display:flex;flex-direction:column;gap:8px}
  .rcard{display:grid;grid-template-columns:1fr auto;gap:8px 12px;padding:12px 12px;
@@ -500,7 +578,7 @@ INDEX_HTML = """<!doctype html>
  .step.on{color:var(--info);border-color:rgba(75,156,245,.35);background:rgba(75,156,245,.08)}
  .step.done{color:var(--up);border-color:#1e4a38}
  .step.skip{color:var(--warn);border-color:#4a3a18}
- .feed{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;
+ .feed{font-family:var(--font-mono);font-size:12px;line-height:1.55;
   max-height:132px;overflow:hidden;position:relative;min-height:88px}
  .feed-line{opacity:0;transform:translateY(6px);animation:feedin .35s forwards;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .feed-line b{color:var(--tx);font-weight:700}
@@ -536,7 +614,7 @@ INDEX_HTML = """<!doctype html>
   .saldo-bar .metric .m-val{font-size:clamp(12px,3.4vw,14px)}
   .saldo-bar .amt{font-size:clamp(34px,10vw,42px)}
   .hero{margin:2px 0 12px;gap:12px}
-  .hero h1{font-size:15px}
+  .hero .kicker{font-size:10px}
   .scope{width:min(180px,58vw)}
   .pick{padding:10px 12px}
   .card{padding:12px;margin-bottom:10px;border-radius:12px}
@@ -545,9 +623,8 @@ INDEX_HTML = """<!doctype html>
   .step{padding:12px 6px;font-size:11px;min-height:44px;display:flex;align-items:center;justify-content:center}
   .chart-wrap{height:170px}
   .chart-wrap canvas{height:170px}
-  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  .kpi{padding:10px}
-  .kpi b{font-size:18px}
+  .kpi{padding:10px 12px}
+  .kpi b{font-size:14px}
   .rcard{padding:12px;gap:6px 10px;min-height:44px}
   .score{font-size:22px}
   .btn{min-height:40px;width:100%}
@@ -568,11 +645,12 @@ INDEX_HTML = """<!doctype html>
   .chart-wrap canvas{height:240px}
   .pipe{grid-template-columns:repeat(4,1fr);gap:10px}
   .step{padding:12px 8px}
-  .grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .kpi b{font-size:14px}
   .card{padding:18px}
   /* desktop: two-column lower board */
-  .board{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;align-items:start}
+  .board{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:12px;align-items:start}
   .board .span2{grid-column:1 / -1}
+  .board .card,#pf-card,#radar-card{min-width:0;overflow:hidden}
  }
  @media (max-width:719px){
   .board{display:flex;flex-direction:column}
@@ -600,7 +678,7 @@ INDEX_HTML = """<!doctype html>
     <div class="eq-hero">
       <div class="label"><i class="live-dot" aria-hidden="true"></i>Equity</div>
       <div class="amt" id="saldo-amt">€…</div>
-      <div class="eq-sub">papier · trading (ex banked)</div>
+      <div class="eq-sub" id="eq-sub">papier · trading</div>
     </div>
     <div class="metrics" role="group" aria-label="Kerncijfers">
       <div class="metric" id="metric-pnl">
@@ -610,7 +688,6 @@ INDEX_HTML = """<!doctype html>
       <div class="metric metric-kas" id="metric-kas">
         <div class="m-top">
           <span class="m-label">Kas</span>
-          <button type="button" class="pay-btn" id="btn-payout" title="Papieren uitbetaling uit kas">Uitbetalen</button>
         </div>
         <b class="m-val" id="saldo-cash">—</b>
         <span class="m-sub" id="saldo-banked" hidden></span>
@@ -625,6 +702,15 @@ INDEX_HTML = """<!doctype html>
       </div>
     </div>
   </div>
+  <div class="cash-panel" aria-label="Papier kas acties">
+    <div class="cash-actions">
+      <button type="button" class="pay-btn" id="btn-payout" title="Hele kas → banked">Uitbetalen</button>
+      <button type="button" class="cash-btn recall" id="btn-unpayout" title="Banked → kas">Terugboeken</button>
+      <button type="button" class="cash-btn deposit" id="btn-deposit-50" data-amt="50" title="Stort +€50 papier">+€50</button>
+      <button type="button" class="cash-btn deposit" id="btn-deposit-100" data-amt="100" title="Stort +€100 papier">+€100</button>
+      <button type="button" class="cash-btn deposit" id="btn-deposit-500" data-amt="500" title="Stort +€500 papier">+€500</button>
+    </div>
+  </div>
 </header>
 <main>
   <div class="hero">
@@ -635,10 +721,11 @@ INDEX_HTML = """<!doctype html>
       <div class="tip" id="tip" role="status"></div>
     </div>
     <div>
-      <div class="kicker">Radar</div>
-      <h1>Kandidaten</h1>
+      <div class="hero-copy">
+      <div class="kicker">Radar · selectie</div>
       <div class="updated" id="rd-updated">bezig met scannen…</div>
-      <div class="pick" id="pick"><p class="empty">Tik een blip of een rij voor details.</p></div>
+      </div>
+      <div class="pick" id="pick"><p class="empty">Tik een blip of een rij voor detail.</p></div>
     </div>
   </div>
   <div class="board">
@@ -711,7 +798,7 @@ async function get(url, ms){
 }
 let radarRows = [];
 let selectedIdx = -1;
-let portfolioSnap = {trades:0, equity_eur:20, cash_eur:20, banked_eur:0, open_posities:0};
+let portfolioSnap = {trades:0, equity_eur:20, cash_eur:20, banked_eur:0, total_eur:20, open_posities:0};
 let opsTimer = null;
 let opsTick = 0;
 function setPipe(active){
@@ -741,30 +828,55 @@ function showToast(msg, kind){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>{ el.className = 'toast'; }, 3200);
 }
-async function doPayout(){
-  const btn = document.getElementById('btn-payout');
+function syncCashButtons(){
+  const cash = Number((portfolioSnap&&portfolioSnap.cash_eur)||0);
+  const banked = Number((portfolioSnap&&portfolioSnap.banked_eur)||0);
+  const pay = document.getElementById('btn-payout');
+  const un = document.getElementById('btn-unpayout');
+  if(pay){ pay.disabled = !(cash > 0.009); pay.title = cash > 0.009 ? 'Hele kas → banked' : 'Geen kas'; }
+  if(un){ un.disabled = !(banked > 0.009); un.title = banked > 0.009 ? 'Banked → kas' : 'Geen banked'; }
+}
+async function cashAction(url, feedOk, feedSkip, busyIds){
   const tile = document.getElementById('metric-kas');
-  if(btn){ btn.classList.add('busy'); btn.disabled = true; }
+  const btns = (busyIds||[]).map(id=>document.getElementById(id)).filter(Boolean);
+  btns.forEach(b=>{ b.classList.add('busy'); b.disabled = true; });
   try{
-    const r = await get('/api/payout', 12000);
+    const r = await get(url, 12000);
     if(r.portfolio) paintPortfolio(r.portfolio);
+    else syncCashButtons();
     if(r.ok){
-      showToast(r.melding || ('Uitbetaald '+eur(r.moved_eur)), 'ok');
-      pushFeed(`UITBETALING <b>${eur(r.moved_eur)}</b> · kas → banked (papier)`, 'ok');
+      showToast(r.melding || feedOk(r), 'ok');
+      pushFeed(feedOk(r), 'ok');
       if(tile){ tile.classList.add('flash-ok'); setTimeout(()=>tile.classList.remove('flash-ok'), 900); }
     } else {
-      showToast(r.melding || 'Geen kas om uit te betalen.', 'warn');
-      pushFeed('uitbetaling skip · geen kas', 'warn');
+      showToast(r.melding || feedSkip, 'warn');
+      pushFeed(feedSkip, 'warn');
     }
   } catch(e){
-    showToast('Uitbetalen mislukt (papier).', 'warn');
+    showToast('Actie mislukt (papier).', 'warn');
   } finally {
-    if(btn){
-      btn.classList.remove('busy');
-      const can = Number((portfolioSnap&&portfolioSnap.cash_eur)||0) > 0.009;
-      btn.disabled = !can;
-    }
+    btns.forEach(b=>b.classList.remove('busy'));
+    syncCashButtons();
   }
+}
+function doPayout(){
+  return cashAction('/api/payout',
+    r=>`UITBETALING <b>${eur(r.moved_eur)}</b> · kas → banked`,
+    'uitbetaling skip · geen kas',
+    ['btn-payout']);
+}
+function doUnpayout(){
+  return cashAction('/api/unpayout',
+    r=>`TERUGBOEKEN <b>${eur(r.moved_eur)}</b> · banked → kas`,
+    'terugboeken skip · geen banked',
+    ['btn-unpayout']);
+}
+function doDeposit(amt){
+  const a = Number(amt)||50;
+  return cashAction('/api/deposit?amount='+encodeURIComponent(a),
+    r=>`STORTING <b>+${eur(r.moved_eur)}</b> · kas+start (papier)`,
+    'storting skip',
+    ['btn-deposit-50','btn-deposit-100','btn-deposit-500']);
 }
 function paperDecision(k){
   const score = Number(k.score)||0;
@@ -834,7 +946,7 @@ function showTip(k, on){
 function paintPick(k){
   const el = document.getElementById('pick');
   if(!k){
-    el.innerHTML = '<p class="empty">Tik een blip of een rij voor details.</p>';
+    el.innerHTML = '<p class="empty">Tik een blip of een rij voor detail.</p>';
     return;
   }
   const ch = k.change_h24!=null ? pct(k.change_h24) : '—';
@@ -913,17 +1025,22 @@ function paintSaldo(pf){
   if(bankedEl){
     if(banked > 0.009){
       bankedEl.hidden = false;
-      bankedEl.innerHTML = 'uitbetaald <b>'+eur(banked)+'</b>';
+      bankedEl.innerHTML = 'banked <b>'+eur(banked)+'</b>';
     } else {
       bankedEl.hidden = true;
       bankedEl.textContent = '';
     }
   }
-  if(payBtn){
-    const can = Number(pf.cash_eur||0) > 0.009;
-    payBtn.disabled = !can;
-    payBtn.title = can ? 'Papieren uitbetaling uit kas' : 'Geen kas om uit te betalen';
+  const eqSub = document.getElementById('eq-sub');
+  if(eqSub){
+    const total = Number(pf.total_eur!=null ? pf.total_eur : (Number(pf.equity_eur||0)+banked));
+    if(banked > 0.009){
+      eqSub.innerHTML = 'totaal <b>'+eur(total)+'</b><span class="sep">·</span>kas+pos+banked';
+    } else {
+      eqSub.textContent = 'papier · trading';
+    }
   }
+  syncCashButtons();
   const invested = Math.max(0, Number(pf.equity_eur||0) - Number(pf.cash_eur||0));
   if(inv) inv.textContent = eur(invested);
   if(start) start.textContent = eur(pf.start_eur);
@@ -939,12 +1056,12 @@ function paintPortfolio(pf){
   document.getElementById('pf-st').textContent = pf.trades ? pf.trades+' trades' : 'nog geen trades';
   const rows = (pf.posities||[]);
   document.getElementById('pf').innerHTML = `
-    <div class="grid">
-      <div class="kpi"><span>Waarde</span><b>${eur(pf.equity_eur)}</b></div>
-      <div class="kpi"><span>Rendement</span><b class="${cls(pf.rendement_pct)}">${pct(pf.rendement_pct)}</b></div>
-      <div class="kpi"><span>Kas</span><b>${eur(pf.cash_eur)}</b></div>
+    <div class="pf-kpis" role="group" aria-label="Papier cijfers">
+      <div class="kpi"><span>Waarde</span><b title="${eur(pf.equity_eur)}">${eur(pf.equity_eur)}</b></div>
+      <div class="kpi"><span>Rendement</span><b class="${cls(pf.rendement_pct)}" title="${pct(pf.rendement_pct)}">${pct(pf.rendement_pct)}</b></div>
+      <div class="kpi"><span>Kas</span><b title="${eur(pf.cash_eur)}">${eur(pf.cash_eur)}</b></div>
       <div class="kpi"><span>Trades</span><b>${pf.trades||0}</b></div>
-      <div class="kpi"><span>Fees</span><b>${eur(pf.fees_paid_eur)}</b></div>
+      <div class="kpi"><span>Fees</span><b title="${eur(pf.fees_paid_eur)}">${eur(pf.fees_paid_eur)}</b></div>
     </div>` + (rows.length ? rows.map(p=>`<div class="rcard"><div><div class="sym">${esc(p.symbol)}</div>
       <div class="meta"><span>qty <b>${esc(p.qty)}</b></span><span>P&L <b class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</b></span></div></div></div>`).join('')
     : '<p class="empty">Nog geen open posities.</p>');
@@ -968,7 +1085,7 @@ function paintRadar(rd){
   const rows = rd.kandidaten||[];
   radarRows = rows;
   st.textContent = rows.length ? rows.length+' live' : 'leeg';
-  upd.textContent = rows.length ? `bijgewerkt ${stamp} · ${rows.length} kandidaten · tik een blip` : `bijgewerkt ${stamp} · geen kandidaten`;
+  upd.textContent = rows.length ? `bijgewerkt ${stamp} · ${rows.length} in beeld · tik een blip` : `bijgewerkt ${stamp} · niets in beeld`;
   paintBlips(rows);
   if(!rows.length){
     selectedIdx = -1;
@@ -1036,7 +1153,7 @@ function paintChart(data, opts){
   const vals = pts.map(p=>Number(p.equity));
   let min = Math.min(...vals), max = Math.max(...vals);
   if(min===max){ min-=1; max+=1; }
-  const padL=36, padR=10, padT=14, padB=22;
+  const padL=58, padR=12, padT=22, padB=28;
   const W=cssW-padL-padR, H=cssH-padT-padB;
   const xAt = i => padL + (pts.length===1? W/2 : i/(pts.length-1)*W);
   const yAt = v => padT + (1-((v-min)/(max-min)))*H;
@@ -1125,8 +1242,10 @@ function paintChart(data, opts){
     });
     // y labels
     ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
-    ctx.fillText('€'+Number(max).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+10);
-    ctx.fillText('€'+Number(min).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+H);
+    ctx.textBaseline='alphabetic';
+    ctx.fillText('€'+Number(max).toLocaleString('nl-NL',{maximumFractionDigits:0}), 6, padT+4);
+    ctx.textBaseline='alphabetic';
+    ctx.fillText('€'+Number(min).toLocaleString('nl-NL',{maximumFractionDigits:0}), 6, padT+H);
     if(p < 1){
       window._chartAnim = requestAnimationFrame(frame);
     } else {
@@ -1153,8 +1272,9 @@ function paintChart(data, opts){
           ctx.closePath(); ctx.fill();
         });
         ctx.fillStyle='#8b98a8'; ctx.font='11px sans-serif';
-        ctx.fillText('€'+Number(max).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+10);
-        ctx.fillText('€'+Number(min).toLocaleString('nl-NL',{maximumFractionDigits:0}), 4, padT+H);
+        ctx.textBaseline='alphabetic';
+        ctx.fillText('€'+Number(max).toLocaleString('nl-NL',{maximumFractionDigits:0}), 6, padT+4);
+        ctx.fillText('€'+Number(min).toLocaleString('nl-NL',{maximumFractionDigits:0}), 6, padT+H);
         window._chartAnim = requestAnimationFrame(pulseOnly);
       }
       if(!reduce) window._chartAnim = requestAnimationFrame(pulseOnly);
@@ -1200,6 +1320,10 @@ async function load(){
   }).catch(()=>{});
 }
 document.getElementById('btn-payout')?.addEventListener('click', ()=>{ doPayout(); });
+document.getElementById('btn-unpayout')?.addEventListener('click', ()=>{ doUnpayout(); });
+document.querySelectorAll('.cash-btn.deposit[data-amt]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ doDeposit(btn.getAttribute('data-amt')); });
+});
 document.getElementById('blips').addEventListener('click', e=>{
   const b = e.target.closest('.blip');
   if(!b) return;
@@ -1268,13 +1392,7 @@ function startLiveStream(){
 load();
 startLiveStream();
 setInterval(refreshLive, 15000);
-setInterval(()=>get('/api/hyper', 40000).then(h=>{
-  if(!h) return;
-  (h.exits||[]).forEach(e=>pushFeed(`SELL <b>${esc(e.symbol)}</b> · ${esc(e.reason)} · ${eur(e.pnl)}`, 'sell'));
-  (h.rotates||[]).forEach(r=>pushFeed(`ROTATE <b>${esc(r.sold)}</b> → <b>${esc(r.to)}</b>`, 'warn'));
-  (h.buys||[]).forEach(s=>pushFeed(`PAPER BUY <b>${esc(s)}</b>`, 'buy'));
-  refreshLive();
-}).catch(()=>{}), 45000);
+/* BARNABY: no client auto-/api/hyper — server _hyper_loop is the single paper writer */
 </script></body></html>"""
 
 
@@ -1331,6 +1449,26 @@ class Handler(BaseHTTPRequestHandler):
                     except (TypeError, ValueError):
                         amt = None
                 self._json(api_payout(amt))
+            elif path == "/api/unpayout":
+                from urllib.parse import parse_qs
+                qs = parse_qs(urlparse(self.path).query)
+                amt = None
+                if qs.get("amount"):
+                    try:
+                        amt = float(qs["amount"][0])
+                    except (TypeError, ValueError):
+                        amt = None
+                self._json(api_unpayout(amt))
+            elif path == "/api/deposit":
+                from urllib.parse import parse_qs
+                qs = parse_qs(urlparse(self.path).query)
+                amt = 50.0
+                if qs.get("amount"):
+                    try:
+                        amt = float(qs["amount"][0])
+                    except (TypeError, ValueError):
+                        amt = 50.0
+                self._json(api_deposit(amt))
             elif path == "/api/health":
                 self._json({"ok": True, "online": _online()})
             elif path == "/api/live":
@@ -1377,11 +1515,19 @@ def _hyper_loop():
 
 def serve(host: str = "127.0.0.1", port: int = 8000) -> int:
     httpd = ThreadingHTTPServer((host, port), Handler)
-    t = threading.Thread(target=_hyper_loop, name="hyper-paper", daemon=True)
-    t.start()
-    sys.stderr.write("  hyper-paper loop gestart (alleen virtueel)\n")
+    guard = HyperInstanceGuard(owner=f"web.server:{host}:{port}")
+    if guard.try_acquire():
+        t = threading.Thread(target=_hyper_loop, name="hyper-paper", daemon=True)
+        t.start()
+        sys.stderr.write("  hyper-paper loop gestart (alleen virtueel, single-writer)\n")
+    else:
+        sys.stderr.write(
+            "  hyper-paper loop NIET gestart — andere instance houdt de lock "
+            "(dashboard blijft read-only + /api/hyper skipped if busy)\n"
+        )
     print(f">> CryptoDokter dashboard: http://{host}:{port}")
-    print("   (alleen lezen + papier; stoppen met Ctrl-C)")
+    print("   PAPER ONLY · start ONE hyper: web.server OR bot.scheduler OR cd_dash")
+    print("   (stoppen met Ctrl-C)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
