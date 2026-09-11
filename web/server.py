@@ -350,24 +350,25 @@ INDEX_HTML = """<!doctype html>
  .badges .live-mode.pulse{box-shadow:0 0 12px rgba(61,214,140,.55)}
  .badges .dot{width:7px;height:7px;background:var(--mute);display:inline-block;margin-right:6px;border-radius:50%}
  .badges .dot.on{background:var(--up);box-shadow:0 0 10px var(--up)}
- .saldo-bar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
-  padding:12px 0 14px;border-top:1px solid rgba(28,38,51,.65)}
- .saldo-bar .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:650}
- .saldo-bar .amt{font-size:clamp(28px,7vw,36px);font-weight:780;letter-spacing:-.05em;
-  font-variant-numeric:tabular-nums;line-height:1;margin-top:4px;transition:color .25s,text-shadow .25s}
+ .saldo-bar{display:flex;align-items:stretch;justify-content:space-between;gap:16px;
+  padding:14px 0 16px;border-top:1px solid rgba(28,38,51,.65)}
+ .saldo-bar .eq-hero{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-end}
+ .saldo-bar .label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mute);font-weight:700}
+ .saldo-bar .amt{font-size:clamp(32px,5.5vw,44px);font-weight:780;letter-spacing:-.055em;
+  font-variant-numeric:tabular-nums;line-height:1;margin-top:8px;transition:color .25s,text-shadow .25s}
  .saldo-bar .amt.flash{color:var(--accent);text-shadow:0 0 18px rgba(92,225,255,.35)}
  .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-right:6px;box-shadow:0 0 8px var(--up);animation:blink 1.2s infinite;vertical-align:middle}
- .saldo-bar .right{text-align:right}
- .saldo-bar .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
-  background:rgba(16,24,32,.9);border:1px solid var(--line);font-size:12px;font-weight:650;
-  font-variant-numeric:tabular-nums}
- .saldo-bar .eq-sub{margin-top:6px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.02em}
- .saldo-bar .meta{margin-top:8px;font-size:12px;color:var(--dim)}
- .saldo-bar .meta b{color:var(--tx);font-weight:650}
- .saldo-bar .pill-dim{color:var(--mute);font-weight:600;margin-left:4px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
- .saldo-bar .meta-grid{display:grid;grid-template-columns:repeat(3,auto);gap:8px 14px;margin-top:10px;justify-content:end}
- .saldo-bar .meta-grid span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);font-weight:700}
- .saldo-bar .meta-grid b{display:block;margin-top:2px;font-size:14px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--tx)}
+ .saldo-bar .eq-sub{margin-top:8px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.03em}
+ .saldo-bar .metrics{display:grid;grid-template-columns:repeat(4,minmax(88px,1fr));gap:8px;flex:0 1 420px;max-width:460px}
+ .saldo-bar .metric{padding:10px 12px;border:1px solid var(--line);border-radius:12px;
+  background:rgba(0,0,0,.22);min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+ .saldo-bar .metric .m-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:700;line-height:1.2}
+ .saldo-bar .metric .m-val{font-size:16px;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums;
+  color:var(--tx);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .saldo-bar .metric.up .m-val{color:var(--up)}
+ .saldo-bar .metric.down .m-val{color:var(--down)}
+ .saldo-bar .metric.up{border-color:rgba(61,214,140,.28);background:rgba(61,214,140,.06)}
+ .saldo-bar .metric.down{border-color:rgba(255,107,122,.28);background:rgba(255,107,122,.06)}
  main{padding:14px var(--padr) 8px var(--pad);max-width:760px;margin:0 auto}
  .hero{display:grid;gap:16px;margin:4px 0 14px}
  @media(min-width:720px){.hero{grid-template-columns:200px 1fr;align-items:center;gap:20px}}
@@ -485,11 +486,11 @@ INDEX_HTML = """<!doctype html>
   .topbar{padding-bottom:8px}
   .brand{font-size:16px}
   .badges{gap:8px;font-size:10px}
-  .saldo-bar{flex-direction:column;align-items:flex-start;gap:10px;padding:10px 0 12px}
-  .saldo-bar .right{text-align:left;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
-  .saldo-bar .meta{margin-top:0}
-  .saldo-bar .meta-grid{justify-content:start;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:8px}
-  .saldo-bar .amt{font-size:clamp(32px,10vw,40px)}
+  .saldo-bar{flex-direction:column;align-items:stretch;gap:12px;padding:10px 0 12px}
+  .saldo-bar .metrics{grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;flex:none;width:100%;gap:8px}
+  .saldo-bar .metric{padding:10px 12px;min-height:64px}
+  .saldo-bar .metric .m-val{font-size:17px}
+  .saldo-bar .amt{font-size:clamp(34px,10vw,42px)}
   .hero{margin:2px 0 12px;gap:12px}
   .hero h1{font-size:clamp(22px,6.5vw,26px)}
   .scope{width:min(180px,58vw)}
@@ -512,8 +513,11 @@ INDEX_HTML = """<!doctype html>
  }
  @media (min-width:720px){
   main{max-width:880px;padding-top:18px}
-  .saldo-bar{padding:14px 0 16px}
-  .saldo-bar .amt{font-size:40px}
+  .saldo-bar{padding:16px 0 18px;gap:24px;align-items:flex-end}
+  .saldo-bar .amt{font-size:44px}
+  .saldo-bar .metrics{flex-basis:480px;max-width:520px;gap:10px}
+  .saldo-bar .metric{padding:12px 14px;border-radius:14px}
+  .saldo-bar .metric .m-val{font-size:18px}
   .hero{grid-template-columns:220px 1fr;gap:24px;margin-bottom:18px}
   .scope{width:220px;margin:0}
   .chart-wrap{height:240px}
@@ -549,17 +553,27 @@ INDEX_HTML = """<!doctype html>
     </div>
   </div>
   <div class="saldo-bar" id="saldo" title="Papieren equity = kas + open posities">
-    <div>
+    <div class="eq-hero">
       <div class="label"><i class="live-dot" aria-hidden="true"></i>Equity</div>
       <div class="amt" id="saldo-amt">€…</div>
-      <div class="eq-sub">papier · live mark-to-market</div>
+      <div class="eq-sub">papier · live</div>
     </div>
-    <div class="right">
-      <div class="pill"><span id="saldo-pnl">—</span> <span class="pill-dim">rendement</span></div>
-      <div class="meta-grid">
-        <div><span>kas</span><b id="saldo-cash">—</b></div>
-        <div><span>in posities</span><b id="saldo-invested">—</b></div>
-        <div><span>start</span><b id="saldo-start">—</b></div>
+    <div class="metrics" role="group" aria-label="Kerncijfers">
+      <div class="metric" id="metric-pnl">
+        <span class="m-label">Rendement</span>
+        <b class="m-val" id="saldo-pnl">—</b>
+      </div>
+      <div class="metric">
+        <span class="m-label">Kas</span>
+        <b class="m-val" id="saldo-cash">—</b>
+      </div>
+      <div class="metric">
+        <span class="m-label">In posities</span>
+        <b class="m-val" id="saldo-invested">—</b>
+      </div>
+      <div class="metric">
+        <span class="m-label">Start</span>
+        <b class="m-val" id="saldo-start">—</b>
       </div>
     </div>
   </div>
@@ -793,6 +807,7 @@ function paintSaldo(pf){
   const cash = document.getElementById('saldo-cash');
   const inv = document.getElementById('saldo-invested');
   const start = document.getElementById('saldo-start');
+  const tile = document.getElementById('metric-pnl');
   if(!amt) return;
   const next = eur(pf.equity_eur);
   if(amt.textContent && amt.textContent!=='€…' && amt.textContent!==next){
@@ -801,16 +816,20 @@ function paintSaldo(pf){
   }
   amt.textContent = next;
   const r = Number(pf.rendement_pct||0);
-  pnl.textContent = pct(r);
-  pnl.className = cls(r);
-  cash.textContent = eur(pf.cash_eur);
+  if(pnl){ pnl.textContent = pct(r); pnl.className = 'm-val'; }
+  if(tile){
+    tile.classList.remove('up','down');
+    if(r>0.009) tile.classList.add('up');
+    else if(r<-0.009) tile.classList.add('down');
+  }
+  if(cash) cash.textContent = eur(pf.cash_eur);
   const invested = Math.max(0, Number(pf.equity_eur||0) - Number(pf.cash_eur||0));
   if(inv) inv.textContent = eur(invested);
   if(start) start.textContent = eur(pf.start_eur);
   const tick = document.getElementById('live-tick');
   if(tick){
     const now = new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    tick.textContent = 'sync '+now;
+    tick.textContent = 'live '+now;
   }
 }
 function paintPortfolio(pf){
