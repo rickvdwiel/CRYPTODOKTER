@@ -92,7 +92,8 @@ def cmd_tick() -> int:
     exits = pf.check_exits(prices)
     for sym, reason, pnl in exits:
         label = "DEELS VERKOCHT" if str(reason).startswith("partial-tp") else "VERKOCHT"
-        print(f"{label} (papier): {sym} — {reason} → €{(pnl or 0):+.2f}")
+        fill_tag = " FILL_AT_TRIGGER" if "fill@trigger" in str(reason) else ""
+        print(f"{label} (papier){fill_tag}: {sym} — {reason} → €{(pnl or 0):+.2f}")
     if not exits:
         print("Geen exit-signalen; posities blijven staan.")
     pf.save()
@@ -267,10 +268,14 @@ def _cmd_hyper_cycle_locked(dry_run: bool, result: dict) -> dict:
 
     exits = pf.check_exits(prices)
     for sym, reason, pnl in exits:
-        result["exits"].append({"symbol": sym, "reason": reason, "pnl": pnl,
-                                "partial": str(reason).startswith("partial-tp")})
+        result["exits"].append({
+            "symbol": sym, "reason": reason, "pnl": pnl,
+            "partial": str(reason).startswith("partial-tp"),
+            "fill_at_trigger": "fill@trigger" in str(reason),
+        })
         label = "DEELS VERKOCHT" if str(reason).startswith("partial-tp") else "VERKOCHT"
-        print(f"{label} (papier): {sym} — {reason} → €{(pnl or 0):+.2f}")
+        fill_tag = " FILL_AT_TRIGGER" if "fill@trigger" in str(reason) else ""
+        print(f"{label} (papier){fill_tag}: {sym} — {reason} → €{(pnl or 0):+.2f}")
 
     # Rotatie: verkoop zwakste (laagste pnl) als er een veel betere nieuwe kandidaat is
     rows = hunt_candidates(limit=16)
