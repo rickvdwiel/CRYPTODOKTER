@@ -65,6 +65,8 @@ class Portfolio:
     fees_paid_eur: float = 0.0
     trades: int = 0
     banked_eur: float = 0.0  # papieren uitbetaling — niet opnieuw inzetbaar
+    # address|symbol -> ISO timestamp van laatste FULL sell (rebuy cooldown)
+    last_full_sell_at: dict = field(default_factory=dict)
 
     # ---------- persistentie ----------
     @classmethod
@@ -83,6 +85,12 @@ class Portfolio:
             fees_paid_eur=float(raw.get("fees_paid_eur", 0.0)),
             trades=int(raw.get("trades", 0)),
             banked_eur=float(raw.get("banked_eur", 0.0)),
+            last_full_sell_at={
+                # addresses stay lower; ticker symbols stay UPPER (as written by record_full_sell)
+                (str(k).lower() if len(str(k)) > 20 or str(k).startswith("0x") else str(k).upper()): str(v)
+                for k, v in (raw.get("last_full_sell_at") or {}).items()
+                if k and v
+            },
         )
         for sym, p in (raw.get("positions") or {}).items():
             # tolerant load: only known Position fields (partial_taken default False)
@@ -104,6 +112,7 @@ class Portfolio:
             "fees_paid_eur": round(self.fees_paid_eur, 4),
             "trades": self.trades,
             "banked_eur": round(self.banked_eur, 4),
+            "last_full_sell_at": dict(self.last_full_sell_at or {}),
             "positions": {s: asdict(p) for s, p in self.positions.items()},
         }
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -131,6 +140,57 @@ class Portfolio:
             return config.SLIPPAGE_PCT_LOW_LIQ
         return config.SLIPPAGE_PCT
 
+
+    # ---------- rebuy cooldown (na full SELL) ----------
+    @staticmethod
+    def _cooldown_key(symbol: str, address: str = "") -> str:
+        addr = (address or "").strip().lower()
+        if addr:
+            return addr
+        return (symbol or "").strip().upper()
+
+    def record_full_sell(self, symbol: str, address: str = "") -> None:
+        """Markeer tijdstip van full exit voor rebuy-cooldown (prefer address)."""
+        key = self._cooldown_key(symbol, address)
+        if not key:
+            return
+        self.last_full_sell_at[key] = _now()
+        # ook symbol-alias bijhouden als we een address hebben, zodat ticker-only checks werken
+        sym = (symbol or "").strip().upper()
+        if address and sym and sym != key:
+            self.last_full_sell_at[sym] = self.last_full_sell_at[key]
+
+    def rebuy_cooldown_remaining_min(self, symbol: str, address: str = "") -> float:
+        """Minuten resterend tot herkoop mag; 0.0 = ok om te kopen."""
+        minutes = float(getattr(config, "REBUY_COOLDOWN_MINUTES", 0) or 0)
+        if minutes <= 0:
+            return 0.0
+        keys = []
+        addr = (address or "").strip().lower()
+        sym = (symbol or "").strip().upper()
+        if addr:
+            keys.append(addr)
+        if sym:
+            keys.append(sym)
+        latest = None
+        for k in keys:
+            ts = (self.last_full_sell_at or {}).get(k)
+            if not ts:
+                continue
+            dt = _parse(ts)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if latest is None or dt > latest:
+                latest = dt
+        if latest is None:
+            return 0.0
+        elapsed = (datetime.now(timezone.utc) - latest).total_seconds() / 60.0
+        rem = minutes - elapsed
+        return rem if rem > 0 else 0.0
+
+    def in_rebuy_cooldown(self, symbol: str, address: str = "") -> bool:
+        return self.rebuy_cooldown_remaining_min(symbol, address) > 0.0
+
     # ---------- handelen ----------
     def buy(self, symbol: str, price_eur: float, budget_eur: Optional[float] = None,
             liquidity_usd: Optional[float] = None, note: str = "",
@@ -141,6 +201,8 @@ class Portfolio:
             return None
         if symbol in self.positions:
             return None                       # niet bijkopen: houd het eerlijk
+        if self.in_rebuy_cooldown(symbol, address):
+            return None                       # rebuy-cooldown na full SELL
         if len(self.positions) >= config.MAX_POSITIONS:
             return None
         budget = budget_eur if budget_eur is not None else (
@@ -186,6 +248,7 @@ class Portfolio:
         self.fees_paid_eur += fee
         self.realized_pnl_eur += pnl
         self.trades += 1
+        self.record_full_sell(symbol, getattr(pos, "address", "") or "")
         del self.positions[symbol]
         self._log("SELL", symbol, pos.qty, fill, net, fee, pnl, reason)
         self.log_equity({}, event="SELL", symbol=symbol)
@@ -227,7 +290,8 @@ class Portfolio:
         pos.cost_eur = pos.cost_eur - sell_cost
         pos.partial_taken = True
         if pos.qty <= 1e-12 or pos.cost_eur <= 1e-8:
-            # afronding: rest te klein → full close
+            # afronding: rest te klein → full close (telt als full SELL voor cooldown)
+            self.record_full_sell(symbol, getattr(pos, "address", "") or "")
             del self.positions[symbol]
         else:
             self.positions[symbol] = pos
