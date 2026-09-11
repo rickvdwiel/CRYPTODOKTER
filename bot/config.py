@@ -33,7 +33,7 @@ MAX_HOLD_MINUTES = 45            # hyper: max 45 min per coin
 ROTATE_SCORE_EDGE = 8.0          # verkoop zwakste als nieuw ≥ +8 score
 
 # Auto-koop
-MIN_SCORE = 22.0              # optimizer: filter weak early-hunt (was 18; SL-heavy ~23% WR)
+MIN_SCORE = 28.0              # Desk/Bernard: selectivity↑ (was 22; gate5 PF~0.55–0.63)
 REBUY_COOLDOWN_MINUTES = 20    # na full SELL: geen herkoop van zelfde addr/symbol
 MIN_LIQUIDITY_USD = 15_000.0
 NEW_PAIR_MAX_AGE_HOURS = 36.0
