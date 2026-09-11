@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from bot import config
+from bot.locks import portfolio_io_lock
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 STATE_FILE = DATA_DIR / "paper_portfolio.json"
@@ -65,6 +66,7 @@ class Portfolio:
     fees_paid_eur: float = 0.0
     trades: int = 0
     banked_eur: float = 0.0  # papieren uitbetaling — niet opnieuw inzetbaar
+    deposits_eur: float = 0.0  # cumulatieve papieren stortingen (start_eur blijft vast)
     # address|symbol -> ISO timestamp van laatste FULL sell (rebuy cooldown)
     last_full_sell_at: dict = field(default_factory=dict)
 
@@ -85,6 +87,7 @@ class Portfolio:
             fees_paid_eur=float(raw.get("fees_paid_eur", 0.0)),
             trades=int(raw.get("trades", 0)),
             banked_eur=float(raw.get("banked_eur", 0.0)),
+            deposits_eur=float(raw.get("deposits_eur", 0.0)),
             last_full_sell_at={
                 # addresses stay lower; ticker symbols stay UPPER (as written by record_full_sell)
                 (str(k).lower() if len(str(k)) > 20 or str(k).startswith("0x") else str(k).upper()): str(v)
@@ -112,26 +115,41 @@ class Portfolio:
             "fees_paid_eur": round(self.fees_paid_eur, 4),
             "trades": self.trades,
             "banked_eur": round(self.banked_eur, 4),
+            "deposits_eur": round(self.deposits_eur, 4),
             "last_full_sell_at": dict(self.last_full_sell_at or {}),
             "positions": {s: asdict(p) for s, p in self.positions.items()},
         }
-        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        body = json.dumps(payload, indent=2, ensure_ascii=False)
+        with portfolio_io_lock():
+            path.write_text(body, encoding="utf-8")
         return path
 
     def log_equity(self, prices: Optional[dict] = None, event: str = "mark", symbol: str = "") -> None:
-        """Append equity snapshot for the dashboard chart."""
+        """Append equity snapshot for the dashboard chart.
+
+        BART: `equity` stays trading (cash + marked positions) so the dashboard
+        "trading equity ex banked" chart keeps working. Alongside each point we
+        ADD `total_eur` (= cash+pos+banked) and `banked_eur`.
+        paper_portfolio.json remains source of truth.
+        """
         DATA_DIR.mkdir(parents=True, exist_ok=True)
-        eq = self.equity_eur(prices or {})
+        trading = self.equity_eur(prices or {})
+        banked = round(float(self.banked_eur or 0.0), 4)
+        total = round(trading + banked, 4)
         row = {
             "t": _now(),
-            "equity": eq,
+            "equity": trading,          # trading equity ex banked (chart)
             "cash": round(self.cash_eur, 4),
+            "banked_eur": banked,
+            "total_eur": total,         # cash + marked positions + banked
             "event": event,
             "symbol": symbol,
             "open": len(self.positions),
         }
-        with EQUITY_FILE.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        line = json.dumps(row, ensure_ascii=False) + "\n"
+        with portfolio_io_lock():
+            with EQUITY_FILE.open("a", encoding="utf-8") as f:
+                f.write(line)
 
     # ---------- kosten ----------
     @staticmethod
@@ -328,6 +346,48 @@ class Portfolio:
         self.log_equity({}, event="PAYOUT", symbol="")
         return round(move, 4)
 
+    def unpayout(self, amount: Optional[float] = None) -> float:
+        """Recall: banked_eur → cash_eur (omkeerbare papieren payout)."""
+        if self.banked_eur <= 0:
+            return 0.0
+        if amount is None:
+            move = self.banked_eur
+        else:
+            move = min(max(0.0, float(amount)), self.banked_eur)
+        if move <= 0:
+            return 0.0
+        self.banked_eur = round(self.banked_eur - move, 4)
+        self.cash_eur = round(self.cash_eur + move, 4)
+        self._log("UNPAYOUT", "BANK", 0.0, 0.0, move, 0.0, 0.0,
+                  "papier recall banked→kas")
+        self.log_equity({}, event="UNPAYOUT", symbol="")
+        return round(move, 4)
+
+    def deposit(self, amount: float, bump_start: bool = True) -> float:
+        """Papieren storting: cash_eur += amount (Adobe Design contract).
+
+        Default bump_start=True: start_eur += amount (Adobe UI / fair rendement zonder
+        aparte deposits-teller). Opt-in fair path: bump_start=False → start_eur vast,
+        cumulatief in deposits_eur. summary basis = start_eur + deposits_eur.
+        """
+        try:
+            amt = float(amount)
+        except (TypeError, ValueError):
+            return 0.0
+        if amt <= 0:
+            return 0.0
+        self.cash_eur = round(self.cash_eur + amt, 4)
+        if bump_start:
+            self.start_eur = round(float(self.start_eur) + amt, 4)
+            note = "papier storting · start+"
+        else:
+            self.deposits_eur = round(float(self.deposits_eur or 0.0) + amt, 4)
+            note = (f"papier storting · deposits €{self.deposits_eur:.2f} "
+                    f"(start_eur ongewijzigd)")
+        self._log("DEPOSIT", "CASH", 0.0, 0.0, amt, 0.0, 0.0, note)
+        self.log_equity({}, event="DEPOSIT", symbol="")
+        return round(amt, 4)
+
     # ---------- risicobewaking ----------
     def check_exits(self, prices: dict) -> list:
         """Loop posities langs met {symbol: prijs_eur} en verkoop wat moet.
@@ -384,26 +444,33 @@ class Portfolio:
 
     # ---------- rapportage ----------
     def equity_eur(self, prices: dict) -> float:
+        """Trading equity only: cash + marked open positions (excludes banked)."""
         total = self.cash_eur
         for sym, pos in self.positions.items():
             price = prices.get(sym) or pos.entry_price
             total += pos.value_eur(price)
         return round(total, 4)
 
+    def total_eur(self, prices: Optional[dict] = None) -> float:
+        """Measurable paper total: cash + marked positions + banked_eur."""
+        return round(self.equity_eur(prices or {}) + float(self.banked_eur or 0.0), 4)
+
     def summary(self, prices: Optional[dict] = None) -> dict:
         prices = prices or {}
         eq = self.equity_eur(prices)
         banked = round(self.banked_eur, 2)
-        total = round(eq + banked, 2)
+        total = round(eq + banked, 2)  # == total_eur(): cash + pos + banked
+        deposits = round(float(self.deposits_eur or 0.0), 2)
+        basis = float(self.start_eur or 0.0) + deposits  # start_eur never mutated by deposit
         return {
             "cash_eur": round(self.cash_eur, 2),
             "banked_eur": banked,
+            "deposits_eur": deposits,
             "equity_eur": eq,
             "total_eur": total,
             "start_eur": self.start_eur,
-            # rendement over totale paper-waarde (trading + uitbetaald)
-            "rendement_pct": round((total - self.start_eur) / self.start_eur * 100.0, 2)
-            if self.start_eur else 0.0,
+            # fair rendement vs start+deposits (trading + banked)
+            "rendement_pct": round((total - basis) / basis * 100.0, 2) if basis else 0.0,
             "open_posities": len(self.positions),
             "realized_pnl_eur": round(self.realized_pnl_eur, 2),
             "fees_paid_eur": round(self.fees_paid_eur, 2),
@@ -413,15 +480,17 @@ class Portfolio:
     # ---------- logboek ----------
     def _log(self, side: str, symbol: str, qty: float, price: float,
              eur: float, fee: float, pnl: float, note: str) -> None:
+        """Single-writer append to paper_trades.csv (flock via portfolio_io_lock)."""
         TRADES_FILE.parent.mkdir(parents=True, exist_ok=True)
-        new = not TRADES_FILE.exists()
-        with TRADES_FILE.open("a", newline="", encoding="utf-8") as fh:
-            w = csv.writer(fh)
-            if new:
-                w.writerow(["tijd", "kant", "symbool", "aantal", "prijs_eur",
-                            "bedrag_eur", "fee_eur", "pnl_eur", "reden"])
-            w.writerow([_now(), side, symbol, f"{qty:.8f}", f"{price:.10f}",
-                        f"{eur:.4f}", f"{fee:.4f}", f"{pnl:.4f}", note])
+        with portfolio_io_lock():
+            new = not TRADES_FILE.exists()
+            with TRADES_FILE.open("a", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                if new:
+                    w.writerow(["tijd", "kant", "symbool", "aantal", "prijs_eur",
+                                "bedrag_eur", "fee_eur", "pnl_eur", "reden"])
+                w.writerow([_now(), side, symbol, f"{qty:.8f}", f"{price:.10f}",
+                            f"{eur:.4f}", f"{fee:.4f}", f"{pnl:.4f}", note])
 
 
 def print_summary(pf: Portfolio, prices: Optional[dict] = None) -> None:
@@ -431,6 +500,7 @@ def print_summary(pf: Portfolio, prices: Optional[dict] = None) -> None:
     print("=" * 62)
     print(f"  Kas        : €{s['cash_eur']:.2f}")
     print(f"  Banked     : €{s['banked_eur']:.2f}  (uitbetaald / stuck cash)")
+    print(f"  Deposits   : €{s.get('deposits_eur', 0):.2f}  (alleen als bump_start=False)")
     print(f"  Waarde     : €{s['equity_eur']:.2f}  (start €{s['start_eur']:.2f})")
     print(f"  Totaal     : €{s['total_eur']:.2f}")
     print(f"  Rendement  : {s['rendement_pct']:+.2f}%")
