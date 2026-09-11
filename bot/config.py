@@ -34,6 +34,7 @@ ROTATE_SCORE_EDGE = 8.0          # verkoop zwakste als nieuw ≥ +8 score
 
 # Auto-koop
 MIN_SCORE = 22.0              # optimizer: filter weak early-hunt (was 18; SL-heavy ~23% WR)
+REBUY_COOLDOWN_MINUTES = 20    # na full SELL: geen herkoop van zelfde addr/symbol
 MIN_LIQUIDITY_USD = 15_000.0
 NEW_PAIR_MAX_AGE_HOURS = 36.0
 EUR_USD = 1.08
