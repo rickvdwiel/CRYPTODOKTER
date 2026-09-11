@@ -85,7 +85,8 @@ def cmd_tick() -> int:
     prices = current_prices(pf)
     exits = pf.check_exits(prices)
     for sym, reason, pnl in exits:
-        print(f"VERKOCHT (papier): {sym} — {reason} → €{pnl:+.2f}")
+        label = "DEELS VERKOCHT" if str(reason).startswith("partial-tp") else "VERKOCHT"
+        print(f"{label} (papier): {sym} — {reason} → €{(pnl or 0):+.2f}")
     if not exits:
         print("Geen exit-signalen; posities blijven staan.")
     pf.save()
@@ -244,8 +245,10 @@ def cmd_hyper_cycle(dry_run: bool = False) -> dict:
 
     exits = pf.check_exits(prices)
     for sym, reason, pnl in exits:
-        result["exits"].append({"symbol": sym, "reason": reason, "pnl": pnl})
-        print(f"VERKOCHT (papier): {sym} — {reason} → €{(pnl or 0):+.2f}")
+        result["exits"].append({"symbol": sym, "reason": reason, "pnl": pnl,
+                                "partial": str(reason).startswith("partial-tp")})
+        label = "DEELS VERKOCHT" if str(reason).startswith("partial-tp") else "VERKOCHT"
+        print(f"{label} (papier): {sym} — {reason} → €{(pnl or 0):+.2f}")
 
     # Rotatie: verkoop zwakste (laagste pnl) als er een veel betere nieuwe kandidaat is
     rows = hunt_candidates(limit=16)
@@ -289,6 +292,7 @@ def cmd_hyper_cycle(dry_run: bool = False) -> dict:
     after_pf = Portfolio.load()
     result["buys"] = sorted(set(after_pf.positions) - before)
     result["cash_eur"] = after_pf.cash_eur
+    result["banked_eur"] = after_pf.banked_eur
     result["open"] = len(after_pf.positions)
     result["equity_eur"] = after_pf.equity_eur(
         {s: p.entry_price for s, p in after_pf.positions.items()}
