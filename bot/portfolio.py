@@ -250,17 +250,38 @@ class Portfolio:
         return pos
 
     def sell(self, symbol: str, price_eur: float, reason: str = "manual",
-             liquidity_usd: Optional[float] = None) -> Optional[float]:
-        """Virtuele verkoop van de hele positie. Geeft gerealiseerde P&L in EUR."""
+             liquidity_usd: Optional[float] = None,
+             mark_price: Optional[float] = None) -> Optional[float]:
+        """Virtuele verkoop van de hele positie. Geeft gerealiseerde P&L in EUR.
+
+        `price_eur` is the fill base (trigger price when FILL_AT_TRIGGER). Optional
+        `mark_price` is the gap mark for shadow dual-ledger PnL only — portfolio
+        cash / realized use the (slipped) fill from price_eur.
+        """
         symbol = symbol.upper()
         pos = self.positions.get(symbol)
         if pos is None or price_eur <= 0:
             return None
-        fill = price_eur * (1 - self.slippage_pct(liquidity_usd) / 100.0)
+        slip = self.slippage_pct(liquidity_usd)
+        fill = price_eur * (1 - slip / 100.0)
         gross = pos.qty * fill
         fee = gross * config.FEE_PCT / 100.0
         net = gross - fee
         pnl = net - pos.cost_eur
+
+        shadow_pnl = None
+        fill_mode = "mark"
+        if mark_price is not None and mark_price > 0:
+            m_fill = mark_price * (1 - slip / 100.0)
+            m_gross = pos.qty * m_fill
+            m_fee = m_gross * config.FEE_PCT / 100.0
+            shadow_pnl = (m_gross - m_fee) - pos.cost_eur
+            if abs(mark_price - price_eur) > 1e-15:
+                fill_mode = "trigger"
+            reason = (
+                f"{reason} | fill_mode={fill_mode} trig={price_eur:.10g} "
+                f"mark={mark_price:.10g} shadow_pnl={shadow_pnl:.4f}"
+            )
 
         self.cash_eur += net
         self.fees_paid_eur += fee
@@ -268,17 +289,20 @@ class Portfolio:
         self.trades += 1
         self.record_full_sell(symbol, getattr(pos, "address", "") or "")
         del self.positions[symbol]
-        self._log("SELL", symbol, pos.qty, fill, net, fee, pnl, reason)
+        self._log("SELL", symbol, pos.qty, fill, net, fee, pnl, reason,
+                  mark_price=mark_price, shadow_pnl=shadow_pnl, fill_mode=fill_mode)
         self.log_equity({}, event="SELL", symbol=symbol)
         return round(pnl, 4)
 
     def sell_partial(self, symbol: str, price_eur: float,
                      fraction: Optional[float] = None, reason: str = "partial-tp",
                      liquidity_usd: Optional[float] = None,
-                     bank_profit: bool = True) -> Optional[float]:
+                     bank_profit: bool = True,
+                     mark_price: Optional[float] = None) -> Optional[float]:
         """Scale-out: verkoop een fractie; rest blijft open. Winst kan → banked (stuck cash).
 
         Geeft gerealiseerde P&L van het verkochte deel in EUR, of None als geweigerd.
+        Optional `mark_price` enables dual-ledger shadow gap-mark PnL (portfolio uses price_eur).
         """
         symbol = symbol.upper()
         pos = self.positions.get(symbol)
@@ -291,18 +315,34 @@ class Portfolio:
             return None
         if frac >= 0.999:
             # bijna alles → full sell
-            return self.sell(symbol, price_eur, reason=reason, liquidity_usd=liquidity_usd)
+            return self.sell(symbol, price_eur, reason=reason,
+                             liquidity_usd=liquidity_usd, mark_price=mark_price)
 
         sell_qty = pos.qty * frac
         sell_cost = pos.cost_eur * frac
         if sell_qty <= 0 or sell_cost < 0:
             return None
 
-        fill = price_eur * (1 - self.slippage_pct(liquidity_usd) / 100.0)
+        slip = self.slippage_pct(liquidity_usd)
+        fill = price_eur * (1 - slip / 100.0)
         gross = sell_qty * fill
         fee = gross * config.FEE_PCT / 100.0
         net = gross - fee
         pnl = net - sell_cost
+
+        shadow_pnl = None
+        fill_mode = "mark"
+        if mark_price is not None and mark_price > 0:
+            m_fill = mark_price * (1 - slip / 100.0)
+            m_gross = sell_qty * m_fill
+            m_fee = m_gross * config.FEE_PCT / 100.0
+            shadow_pnl = (m_gross - m_fee) - sell_cost
+            if abs(mark_price - price_eur) > 1e-15:
+                fill_mode = "trigger"
+            reason = (
+                f"{reason} | fill_mode={fill_mode} trig={price_eur:.10g} "
+                f"mark={mark_price:.10g} shadow_pnl={shadow_pnl:.4f}"
+            )
 
         pos.qty = pos.qty - sell_qty
         pos.cost_eur = pos.cost_eur - sell_cost
@@ -318,7 +358,8 @@ class Portfolio:
         self.fees_paid_eur += fee
         self.realized_pnl_eur += pnl
         self.trades += 1
-        self._log("SELL_PARTIAL", symbol, sell_qty, fill, net, fee, pnl, reason)
+        self._log("SELL_PARTIAL", symbol, sell_qty, fill, net, fee, pnl, reason,
+                  mark_price=mark_price, shadow_pnl=shadow_pnl, fill_mode=fill_mode)
         self.log_equity({symbol: fill}, event="SELL_PARTIAL", symbol=symbol)
 
         # Scale-out winst → banked zodat hunt niet meteen alles herinzet
@@ -389,10 +430,36 @@ class Portfolio:
         return round(amt, 4)
 
     # ---------- risicobewaking ----------
+    @staticmethod
+    def exit_trigger_price(pos: Position, kind: str, mark_price: float) -> float:
+        """Threshold price implied by exit type (paper FILL_AT_TRIGGER).
+
+        kind: stop-loss | take-profit | partial-tp | trailing-stop | other
+        For hold timeouts / manual, returns mark_price (no threshold).
+        """
+        entry = float(pos.entry_price or 0.0)
+        if kind == "stop-loss" and entry > 0:
+            return entry * (1.0 + float(config.STOP_LOSS_PCT) / 100.0)
+        if kind == "take-profit" and entry > 0:
+            return entry * (1.0 + float(config.TAKE_PROFIT_PCT) / 100.0)
+        if kind == "partial-tp" and entry > 0:
+            pct = float(getattr(config, "PARTIAL_TP_PCT", 4.5))
+            return entry * (1.0 + pct / 100.0)
+        if kind == "trailing-stop":
+            high = float(pos.high_price or entry or 0.0)
+            if high > 0:
+                return high * (1.0 + float(config.TRAILING_STOP_PCT) / 100.0)
+        return float(mark_price)
+
     def check_exits(self, prices: dict) -> list:
         """Loop posities langs met {symbol: prijs_eur} en verkoop wat moet.
-        Geeft lijst van (symbol, reden, pnl_eur)."""
+        Geeft lijst van (symbol, reden, pnl_eur).
+
+        Exit order (P2 HOLD — do not reorder): SL → TP → partial-tp → trail → hold.
+        When FILL_AT_TRIGGER: portfolio fills at threshold price; mark kept for shadow.
+        """
         done = []
+        fill_at_trigger = bool(getattr(config, "FILL_AT_TRIGGER", False))
         for symbol in list(self.positions):
             price = prices.get(symbol) or prices.get(symbol.upper())
             if not price or price <= 0:
@@ -417,28 +484,45 @@ class Portfolio:
 
             reason = None
             partial = False
+            kind = None
             partial_pct = float(getattr(config, "PARTIAL_TP_PCT", 4.5))
             if pnl_pct <= config.STOP_LOSS_PCT:
+                kind = "stop-loss"
                 reason = f"stop-loss ({pnl_pct}%)"
             elif pnl_pct >= config.TAKE_PROFIT_PCT:
+                kind = "take-profit"
                 reason = f"take-profit ({pnl_pct}%)"
             elif (not getattr(pos, "partial_taken", False)
                   and pnl_pct >= partial_pct):
+                kind = "partial-tp"
                 frac_pct = int(round(float(getattr(config, "PARTIAL_TP_FRACTION", 0.45)) * 100))
                 reason = f"partial-tp ({pnl_pct}% → {frac_pct}%)"
                 partial = True
             elif pnl_pct > 0 and drop_from_high <= config.TRAILING_STOP_PCT:
+                kind = "trailing-stop"
                 reason = f"trailing-stop ({round(drop_from_high, 1)}% vanaf top)"
             elif age_min >= getattr(config, "MAX_HOLD_MINUTES", 24 * 60):
+                kind = "hyper-hold"
                 reason = f"hyper-hold ({int(age_min)} min)"
             elif age_days >= config.MAX_HOLD_DAYS:
+                kind = "max-hold"
                 reason = f"te lang stil ({int(age_days)} dagen)"
 
             if reason:
+                mark = float(price)
+                fill_px = mark
+                if fill_at_trigger and kind in (
+                        "stop-loss", "take-profit", "partial-tp", "trailing-stop"):
+                    fill_px = self.exit_trigger_price(pos, kind, mark)
+                    if fill_px <= 0:
+                        fill_px = mark
+                    reason = f"{reason} [fill@trigger]"
                 if partial:
-                    pnl = self.sell_partial(symbol, price, reason=reason)
+                    pnl = self.sell_partial(symbol, fill_px, reason=reason,
+                                            mark_price=mark)
                 else:
-                    pnl = self.sell(symbol, price, reason=reason)
+                    pnl = self.sell(symbol, fill_px, reason=reason,
+                                    mark_price=mark)
                 done.append((symbol, reason, pnl))
         return done
 
@@ -478,19 +562,54 @@ class Portfolio:
         }
 
     # ---------- logboek ----------
+    _TRADE_COLS = [
+        "tijd", "kant", "symbool", "aantal", "prijs_eur",
+        "bedrag_eur", "fee_eur", "pnl_eur", "reden",
+        "mark_prijs_eur", "shadow_pnl_eur", "fill_mode",
+    ]
+
+    def _ensure_trades_header_locked(self) -> None:
+        """Extend CSV header with dual-ledger cols if an older 9-col header exists."""
+        if not TRADES_FILE.exists() or TRADES_FILE.stat().st_size == 0:
+            return
+        raw = TRADES_FILE.read_text(encoding="utf-8")
+        lines = raw.splitlines(keepends=True)
+        if not lines:
+            return
+        first = lines[0].rstrip("\r\n")
+        if "fill_mode" in first:
+            return
+        # migrate header only; body rows keep legacy width (extra cols blank on read)
+        lines[0] = ",".join(self._TRADE_COLS) + "\n"
+        TRADES_FILE.write_text("".join(lines), encoding="utf-8")
+
     def _log(self, side: str, symbol: str, qty: float, price: float,
-             eur: float, fee: float, pnl: float, note: str) -> None:
-        """Single-writer append to paper_trades.csv (flock via portfolio_io_lock)."""
+             eur: float, fee: float, pnl: float, note: str,
+             mark_price: Optional[float] = None,
+             shadow_pnl: Optional[float] = None,
+             fill_mode: Optional[str] = None) -> None:
+        """Single-writer append to paper_trades.csv (flock via portfolio_io_lock).
+
+        Dual ledger (FILL_AT_TRIGGER):
+          - prijs_eur / pnl_eur = portfolio trigger-fill (after slip)
+          - mark_prijs_eur / shadow_pnl_eur = gap-mark comparison (not applied to cash)
+          - fill_mode = trigger | mark
+        """
         TRADES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        mark_s = f"{mark_price:.10f}" if mark_price is not None else ""
+        shadow_s = f"{shadow_pnl:.4f}" if shadow_pnl is not None else ""
+        mode_s = fill_mode or ""
         with portfolio_io_lock():
-            new = not TRADES_FILE.exists()
+            new = not TRADES_FILE.exists() or TRADES_FILE.stat().st_size == 0
+            if not new:
+                self._ensure_trades_header_locked()
             with TRADES_FILE.open("a", newline="", encoding="utf-8") as fh:
                 w = csv.writer(fh)
                 if new:
-                    w.writerow(["tijd", "kant", "symbool", "aantal", "prijs_eur",
-                                "bedrag_eur", "fee_eur", "pnl_eur", "reden"])
+                    w.writerow(self._TRADE_COLS)
                 w.writerow([_now(), side, symbol, f"{qty:.8f}", f"{price:.10f}",
-                            f"{eur:.4f}", f"{fee:.4f}", f"{pnl:.4f}", note])
+                            f"{eur:.4f}", f"{fee:.4f}", f"{pnl:.4f}", note,
+                            mark_s, shadow_s, mode_s])
 
 
 def print_summary(pf: Portfolio, prices: Optional[dict] = None) -> None:
