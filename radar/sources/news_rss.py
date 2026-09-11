@@ -93,6 +93,9 @@ TREND_FEEDS: dict[str, str] = {
     "cryptoadventure": "https://cryptoadventure.com/feed/",
     "cryptoeconomy": "https://crypto-economy.com/feed/",
     "wu-blockchain": "https://wublockchain.substack.com/feed",
+    "multicoin": "https://multicoin.capital/rss.xml",
+    "altcoindaily": "https://altcoindaily.co/feed/",
+    "raydium": "https://raydium.medium.com/feed",
 }
 
 
