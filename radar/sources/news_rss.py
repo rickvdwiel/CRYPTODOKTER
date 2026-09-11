@@ -101,6 +101,9 @@ TREND_FEEDS: dict[str, str] = {
     "sui-blog": "https://blog.sui.io/rss/",
     "aptos-blog": "https://medium.com/feed/aptoslabs",
     "sei-blog": "https://blog.sei.io/rss/",
+    "orca-so": "https://medium.com/feed/orca-so",
+    "marinade": "https://medium.com/feed/marinade-finance",
+    "manta": "https://mantanetwork.medium.com/feed",
 
 }
 
