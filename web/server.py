@@ -453,6 +453,66 @@ INDEX_HTML = """<!doctype html>
  .chart-legend .buy i{background:var(--up)} .chart-legend .sell i{background:var(--down)}
  .chart-legend .eq i{background:var(--accent)}
  footer{padding:10px var(--padr) 24px var(--pad);color:var(--mute);font-size:11px;max-width:760px;margin:0 auto;line-height:1.5}
+
+ /* responsive clarity */
+ html,body{overflow-x:hidden}
+ .card,.botops,.rcard,.pick,.chart-wrap{max-width:100%}
+ .feed-line,.meta,.sym{overflow-wrap:anywhere;word-break:break-word}
+ .pipe{gap:8px}
+ @media (max-width:719px){
+  header{padding-left:max(12px, env(safe-area-inset-left));padding-right:max(12px, env(safe-area-inset-right))}
+  main{padding:12px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left))}
+  .topbar{padding-bottom:8px}
+  .brand{font-size:16px}
+  .badges{gap:8px;font-size:10px}
+  .saldo-bar{flex-direction:column;align-items:flex-start;gap:10px;padding:10px 0 12px}
+  .saldo-bar .right{text-align:left;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+  .saldo-bar .meta{margin-top:0}
+  .saldo-bar .amt{font-size:clamp(30px,9vw,38px)}
+  .hero{margin:2px 0 12px;gap:12px}
+  .hero h1{font-size:clamp(22px,6.5vw,26px)}
+  .scope{width:min(180px,58vw)}
+  .pick{padding:10px 12px}
+  .card{padding:12px;margin-bottom:10px;border-radius:12px}
+  .botops{padding:12px;margin-bottom:10px}
+  .pipe{grid-template-columns:repeat(2,1fr);gap:6px}
+  .step{padding:12px 6px;font-size:11px;min-height:44px;display:flex;align-items:center;justify-content:center}
+  .chart-wrap{height:170px}
+  .chart-wrap canvas{height:170px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kpi{padding:10px}
+  .kpi b{font-size:18px}
+  .rcard{padding:12px;gap:6px 10px;min-height:44px}
+  .score{font-size:22px}
+  .btn{min-height:40px;width:100%}
+  .feed{min-height:72px;max-height:110px;font-size:11px}
+  .chart-legend{gap:10px;font-size:10px}
+  footer{padding-top:6px}
+ }
+ @media (min-width:720px){
+  main{max-width:880px;padding-top:18px}
+  .saldo-bar{padding:14px 0 16px}
+  .saldo-bar .amt{font-size:40px}
+  .hero{grid-template-columns:220px 1fr;gap:24px;margin-bottom:18px}
+  .scope{width:220px;margin:0}
+  .chart-wrap{height:240px}
+  .chart-wrap canvas{height:240px}
+  .pipe{grid-template-columns:repeat(4,1fr);gap:10px}
+  .step{padding:12px 8px}
+  .grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .card{padding:18px}
+  /* desktop: two-column lower board */
+  .board{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;align-items:start}
+  .board .span2{grid-column:1 / -1}
+ }
+ @media (max-width:719px){
+  .board{display:flex;flex-direction:column}
+  #chart-card{order:1}
+  #botops{order:2}
+  #radar-card{order:3}
+  #pf-card{order:4}
+  #wl-card{order:5}
+ }
  @media (prefers-reduced-motion: reduce){
   .sweep,.blip,.skel,.botops::before,.ops-live i,.ops-bar > i,.feed-line{animation:none !important}
   .feed-line{opacity:1;transform:none}
@@ -492,7 +552,8 @@ INDEX_HTML = """<!doctype html>
       <div class="pick" id="pick"><p class="empty">Tik een blip of een rij voor details.</p></div>
     </div>
   </div>
-  <section class="botops" id="botops" aria-live="polite">
+  <div class="board">
+  <section class="botops span2" id="botops" aria-live="polite">
     <div class="ops-top">
       <div class="ops-title">Paperbot · wat gebeurt er</div>
       <div class="ops-live"><i></i><span id="ops-state">opstarten</span></div>
@@ -506,7 +567,7 @@ INDEX_HTML = """<!doctype html>
     <div class="feed" id="ops-feed"></div>
     <div class="ops-bar" aria-hidden="true"><i></i></div>
   </section>
-  <section class="card" id="chart-card">
+  <section class="card span2" id="chart-card">
     <div class="head"><h2>Hyper trackrecord</h2><span class="status"><span id="ch-st">laden</span> · <span id="live-tick">…</span></span></div>
     <div class="chart-wrap"><canvas id="eq-chart" width="680" height="200"></canvas></div>
     <div class="chart-legend">
@@ -519,14 +580,15 @@ INDEX_HTML = """<!doctype html>
     <div class="head"><h2>Trending</h2><span class="status" id="rd-st">scannen…</span></div>
     <div id="radar"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
   </section>
-  <section class="card">
+  <section class="card" id="pf-card">
     <div class="head"><h2>Papier</h2><span class="status" id="pf-st">laden</span></div>
     <div id="pf"><div class="skel"></div></div>
   </section>
-  <section class="card">
+  <section class="card" id="wl-card">
     <div class="head"><h2>Watchlist</h2><span class="status" id="wl-st">laden</span></div>
     <div id="wl"><div class="skel"></div></div>
   </section>
+  </div>
 </main>
 <footer>Geen financieel advies. Micro-caps gaan meestal naar nul. Deze site handelt nooit echt.</footer>
 <script>
