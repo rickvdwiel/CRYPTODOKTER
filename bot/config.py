@@ -21,7 +21,7 @@ LOW_LIQ_USD = 50_000.0
 
 # Hyper risicoregels — snel winst nemen / cutten
 STOP_LOSS_PCT = -6.0
-TAKE_PROFIT_PCT = 8.0
+TAKE_PROFIT_PCT = 12.0            # Desk/Bernard R:R (was 8; MIN_SCORE28 PF~0.60)
 # Scale-out: deel verkopen vóór full TP; winst → banked (kas die niet meteen opnieuw in gaat)
 PARTIAL_TP_PCT = 4.5             # trigger vóór TAKE_PROFIT_PCT=8
 PARTIAL_TP_FRACTION = 0.45       # fractie van qty die bij partial TP weggaat
