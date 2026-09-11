@@ -346,8 +346,13 @@ INDEX_HTML = """<!doctype html>
  .saldo-bar .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
   background:rgba(16,24,32,.9);border:1px solid var(--line);font-size:12px;font-weight:650;
   font-variant-numeric:tabular-nums}
+ .saldo-bar .eq-sub{margin-top:6px;font-size:11px;color:var(--mute);font-weight:600;letter-spacing:.02em}
  .saldo-bar .meta{margin-top:8px;font-size:12px;color:var(--dim)}
  .saldo-bar .meta b{color:var(--tx);font-weight:650}
+ .saldo-bar .pill-dim{color:var(--mute);font-weight:600;margin-left:4px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+ .saldo-bar .meta-grid{display:grid;grid-template-columns:repeat(3,auto);gap:8px 14px;margin-top:10px;justify-content:end}
+ .saldo-bar .meta-grid span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);font-weight:700}
+ .saldo-bar .meta-grid b{display:block;margin-top:2px;font-size:14px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--tx)}
  main{padding:14px var(--padr) 8px var(--pad);max-width:760px;margin:0 auto}
  .hero{display:grid;gap:16px;margin:4px 0 14px}
  @media(min-width:720px){.hero{grid-template-columns:200px 1fr;align-items:center;gap:20px}}
@@ -468,7 +473,8 @@ INDEX_HTML = """<!doctype html>
   .saldo-bar{flex-direction:column;align-items:flex-start;gap:10px;padding:10px 0 12px}
   .saldo-bar .right{text-align:left;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
   .saldo-bar .meta{margin-top:0}
-  .saldo-bar .amt{font-size:clamp(30px,9vw,38px)}
+  .saldo-bar .meta-grid{justify-content:start;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:8px}
+  .saldo-bar .amt{font-size:clamp(32px,10vw,40px)}
   .hero{margin:2px 0 12px;gap:12px}
   .hero h1{font-size:clamp(22px,6.5vw,26px)}
   .scope{width:min(180px,58vw)}
@@ -526,14 +532,19 @@ INDEX_HTML = """<!doctype html>
       <span id="health"><i class="dot" id="hdot"></i><span id="htext">…</span></span>
     </div>
   </div>
-  <div class="saldo-bar" id="saldo" title="Papieren equity">
+  <div class="saldo-bar" id="saldo" title="Papieren equity = kas + open posities">
     <div>
-      <div class="label"><i class="live-dot" aria-hidden="true"></i>Saldo live</div>
+      <div class="label"><i class="live-dot" aria-hidden="true"></i>Equity</div>
       <div class="amt" id="saldo-amt">€…</div>
+      <div class="eq-sub">papier · live mark-to-market</div>
     </div>
     <div class="right">
-      <div class="pill"><span id="saldo-pnl">—</span></div>
-      <div class="meta">kas <b id="saldo-cash">—</b></div>
+      <div class="pill"><span id="saldo-pnl">—</span> <span class="pill-dim">rendement</span></div>
+      <div class="meta-grid">
+        <div><span>kas</span><b id="saldo-cash">—</b></div>
+        <div><span>in posities</span><b id="saldo-invested">—</b></div>
+        <div><span>start</span><b id="saldo-start">—</b></div>
+      </div>
     </div>
   </div>
 </header>
@@ -764,6 +775,8 @@ function paintSaldo(pf){
   const amt = document.getElementById('saldo-amt');
   const pnl = document.getElementById('saldo-pnl');
   const cash = document.getElementById('saldo-cash');
+  const inv = document.getElementById('saldo-invested');
+  const start = document.getElementById('saldo-start');
   if(!amt) return;
   const next = eur(pf.equity_eur);
   if(amt.textContent && amt.textContent!=='€…' && amt.textContent!==next){
@@ -775,8 +788,9 @@ function paintSaldo(pf){
   pnl.textContent = pct(r);
   pnl.className = cls(r);
   cash.textContent = eur(pf.cash_eur);
-  const st = document.getElementById('ch-st');
-  // stamp last live sync on chart status if idle-ish
+  const invested = Math.max(0, Number(pf.equity_eur||0) - Number(pf.cash_eur||0));
+  if(inv) inv.textContent = eur(invested);
+  if(start) start.textContent = eur(pf.start_eur);
   const tick = document.getElementById('live-tick');
   if(tick){
     const now = new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
