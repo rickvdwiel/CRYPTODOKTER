@@ -264,6 +264,8 @@ def cmd_hyper_cycle(dry_run: bool = False) -> dict:
         for row in rows:
             if row["symbol"].upper() in pf.positions:
                 continue
+            if pf.in_rebuy_cooldown(row["symbol"], row.get("address") or ""):
+                continue
             if "RUG" in (row.get("risk") or ""):
                 continue
             if row["score"] < config.MIN_SCORE or row["liquidity_usd"] < config.MIN_LIQUIDITY_USD:
@@ -341,6 +343,11 @@ def cmd_scan(dry_run: bool = False) -> int:
             continue
         if sym.upper() in pf.positions:
             print(f"  overslaan {sym:<12} al in portefeuille")
+            continue
+        rem = pf.rebuy_cooldown_remaining_min(sym, row.get("address") or "")
+        if rem > 0:
+            print(f"  overslaan {sym:<12} rebuy-cooldown "
+                  f"({rem:.1f} min resterend na full SELL)")
             continue
         # Prioriteit: nieuwe coins; oudere alleen als score hard genoeg
         if not row["is_new"] and total < (config.MIN_SCORE + 8):
