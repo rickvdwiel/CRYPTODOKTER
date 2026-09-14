@@ -104,6 +104,13 @@ TREND_FEEDS: dict[str, str] = {
     "orca-so": "https://medium.com/feed/orca-so",
     "marinade": "https://medium.com/feed/marinade-finance",
     "manta": "https://mantanetwork.medium.com/feed",
+    "celestia": "https://blog.celestia.org/rss/",
+    "layerzero": "https://medium.com/feed/layerzero-official",
+    "pendle": "https://medium.com/feed/pendle",
+    "drift": "https://driftprotocol.medium.com/feed",
+    "blockzeit": "https://blockzeit.com/feed/",
+    "btc-echo": "https://www.btc-echo.de/feed/",
+    "compound": "https://medium.com/feed/compound-finance",
 
 }
 
