@@ -134,6 +134,17 @@ TREND_FEEDS: dict[str, str] = {
     "triton": "https://blog.triton.one/rss",
     "syndica": "https://blog.syndica.io/rss",
     "kryptoszene": "https://kryptoszene.de/feed/",
+
+    # NL / DeFi / L2 / governance (Newsbronnen 2026-09-15 10:17)
+    "bitcoin-nl": "https://bitcoin.nl/rss",
+    "dlnews": "https://www.dlnews.com/arc/outboundfeeds/rss/",
+    "ethereum-blog": "https://blog.ethereum.org/en/feed.xml",
+    "rocketpool": "https://medium.com/feed/rocket-pool",
+    "gmx": "https://gmxio.substack.com/feed",
+    "gains-network": "https://medium.com/feed/gains-network",
+    "maker-forum": "https://forum.makerdao.com/latest.rss",
+    "defirate": "https://defirate.com/feed/",
+    "optimism": "https://optimism.mirror.xyz/feed/atom",
 }
 
 
