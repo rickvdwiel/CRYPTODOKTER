@@ -112,6 +112,17 @@ TREND_FEEDS: dict[str, str] = {
     "btc-echo": "https://www.btc-echo.de/feed/",
     "compound": "https://medium.com/feed/compound-finance",
 
+    # Early-coin / research / DE (Newsbronnen 2026-09-15)
+    "eigenlayer": "https://blog.eigenlayer.xyz/rss/",
+    "pyth": "https://pyth.substack.com/feed",
+    "starknet": "https://starkware.medium.com/feed",
+    "lido": "https://blog.lido.fi/rss/",
+    "synthetix": "https://blog.synthetix.io/rss/",
+    "ethresear": "https://ethresear.ch/latest.rss",
+    "l2beat": "https://medium.com/feed/l2beat",
+    "ournetwork": "https://ournetwork.substack.com/feed",
+    "a16zcrypto": "https://a16zcrypto.substack.com/feed",
+    "coin-update": "https://www.coin-update.de/feed/",
 }
 
 
