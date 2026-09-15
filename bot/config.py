@@ -34,7 +34,7 @@ ROTATE_SCORE_EDGE = 8.0          # verkoop zwakste als nieuw ≥ +8 score
 
 # Auto-koop
 MIN_SCORE = 28.0              # Desk/Bernard: selectivity↑ (was 22; gate5 PF~0.55–0.63; 32 NO-GO PF↓)
-REBUY_COOLDOWN_MINUTES = 20    # na full SELL: geen herkoop van zelfde addr/symbol
+REBUY_COOLDOWN_MINUTES = 40  # Desk GO fee-drag: was 20; 80% reboughts in 20–40m band
 MIN_LIQUIDITY_USD = 15_000.0
 NEW_PAIR_MAX_AGE_HOURS = 36.0
 EUR_USD = 1.08
