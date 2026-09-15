@@ -123,6 +123,17 @@ TREND_FEEDS: dict[str, str] = {
     "ournetwork": "https://ournetwork.substack.com/feed",
     "a16zcrypto": "https://a16zcrypto.substack.com/feed",
     "coin-update": "https://www.coin-update.de/feed/",
+
+    # Infra / L1-L2 / DE (Newsbronnen 2026-09-15 10:17)
+    "jupiter-research": "https://jupresear.ch/latest.rss",
+    "algorand": "https://algorand.co/blog/rss.xml",
+    "hedera": "https://hedera.com/blog/feed",
+    "curve": "https://news.curve.finance/rss/",
+    "celo": "https://medium.com/feed/celoorg",
+    "balancer": "https://medium.com/feed/balancer-protocol",
+    "triton": "https://blog.triton.one/rss",
+    "syndica": "https://blog.syndica.io/rss",
+    "kryptoszene": "https://kryptoszene.de/feed/",
 }
 
 
