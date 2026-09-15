@@ -25,15 +25,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from bot import run_bot
+from bot import config, run_bot
 from bot.locks import HyperInstanceGuard
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 LOG_FILE = DATA_DIR / "scheduler.log"
 
-# Intervalen (seconden)
-TICK_INTERVAL_SEC = 45               # hyper: elke 45s exits/prijzen
-SCAN_INTERVAL_SEC = 45               # hyper-hunt: elke 45s
+# Intervalen (seconden) — volgen bot.config (hyper-pakket)
+TICK_INTERVAL_SEC = int(getattr(config, "TICK_INTERVAL_SEC", 45))
+SCAN_INTERVAL_SEC = int(getattr(config, "HUNT_INTERVAL_SEC", 45))
 
 
 def setup_logging(log_path: Optional[Path] = None) -> logging.Logger:
@@ -148,7 +148,7 @@ def loop(
             if now - last_scan >= scan_every and not hasattr(run_bot, "cmd_hyper_cycle"):
                 run_scan(log, dry_run=dry_run_scan)
                 last_scan = now
-            time.sleep(min(30, tick_every, scan_every))
+            time.sleep(max(1, min(tick_every, scan_every)))
     except KeyboardInterrupt:
         log.info("Scheduler gestopt door gebruiker (%s UTC).", _utc_now().isoformat())
     finally:
@@ -196,8 +196,8 @@ def main(argv: Optional[list] = None) -> int:
         return t or s
 
     loop(
-        tick_every=max(30, args.tick_every),
-        scan_every=max(60, args.scan_every),
+        tick_every=max(5, args.tick_every),
+        scan_every=max(5, args.scan_every),
         dry_run_scan=args.dry_run,
         logger=log,
     )
