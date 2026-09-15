@@ -254,3 +254,13 @@ cryptodokter/
 - Geen nieuwe NL. cryptoinside.nl niet gebruikt.
 - tests: asserts hackernoon-crypto/cryptoadventure/wu-blockchain (≥69).
 - search() contract ongewijzigd.
+
+
+[CryptoDokter Newsbronnen, 2026-09-15] TREND_FEEDS 107 → 116 (+9):
+- NL: bitcoin-nl.
+- Intl: dlnews, ethereum-blog, rocketpool, gmx, gains-network, maker-forum, defirate, optimism.
+- Focus: early DeFi/perps/governance/prediction-markets + NL Bitcoin-first.
+- Alleen HTTP 200 + ElementTree-parsebaar (project-UA). Fail-open blijft.
+- Overgeslagen: base (Mirror 429 op recheck), thedefiant/blockworks (403), messari (geen public RSS), cryptoinside.nl, affiliate/spam (bitcoinspot/cryptopolitan/nulltx).
+- tests/test_news_watchers.py: asserts nieuwe ids (≥115).
+- search() contract ongewijzigd.
