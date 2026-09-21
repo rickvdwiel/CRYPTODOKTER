@@ -18,8 +18,8 @@
 | TREND_FEEDS | **116** feeds op main |
 
 ### Laatste bekende tunnels (kunnen dood zijn)
-- Prefer: `https://ripe-ears-smash.loca.lt/login`
-- CF: `https://certification-unity-incorporated-evident.trycloudflare.com/login`  
+- Prefer: `https://wet-colts-hunt.loca.lt/login`
+- CF: `https://dining-photos-continuity-management.trycloudflare.com/login`  
 → Site opnieuw tunnels starten als dood.
 
 ### Domein
@@ -105,3 +105,7 @@ Single-writer: geen tweede `bot.scheduler` tegelijk op dezelfde `data/`.
 
 ---
 *CryptoDokter.nl handoff voor Titan — limiet-bestendig doorwerken.*
+
+## TREND_FEEDS (2026-09-21 avond)
+- Count op main: **136** (incl. `btcdirect` → https://blog.btcdirect.eu/feed/).
+- Paper-only; fail-open RSS.
