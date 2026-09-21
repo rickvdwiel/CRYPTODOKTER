@@ -25,7 +25,7 @@ en risico-labels toont — zonder de gebruiker te misleiden.
 | `radar/run_radar.py --grok-prompt`          | ✅ werkt, toont prompt (smoke-test ok)      |
 | `python -m compileall radar`                | ✅ compileerbaar                             |
 | `radar/sources/{x_scraper,news_rss,dexscreener}` | ✅ aanwezig (live-run niet gevalideerd)  |
-| `radar/momentum.py` (Bitvavo-REST, ccxt opt) | ✅ aanwezig (netwerk-run niet gevalideerd)  |
+| `radar/momentum.py` (Bitvavo-REST, ccxt opt) | ✅ aanwezig (live-run niet gevalideerd)     |
 | `radar/signals.py` (score 0-100 + labels)   | ✅ aanwezig                                  |
 | `.venv` + `requirements.txt`                | ✅ installatie schoon (lichte deps)          |
 | GitHub `main`                              | ✅ gepusht                                    |
@@ -169,7 +169,7 @@ cryptodokter/
     BTC-EUR 4h/500 → 1 trade, -€0,47. De engine geeft ook winrate en exit-redenen.
   - `tests/test_backtest.py`: 14 tests (breakout, alle exit-regels, kosten,
     stats, netwerkfout). **Totaal 50 tests groen.**
-- **[jcode, sep 2026] Fase 3 — dashboard voor cryptodokter.nl staat:**
+  - **Fase 3 — dashboard voor cryptodokter.nl staat:**
   - `web/server.py`: HTTP-server op alléén de standaardbibliotheek (geen Flask).
     `python -m web.server` → http://127.0.0.1:8000 (`--host/--port` beschikbaar).
   - Endpoints: `/` (dark-mode dashboard), `/api/portfolio`, `/api/radar`, `/api/watchlist`, `/api/health`. Antwoorden 5 minuten gecachet zodat de gratis bronnen niet worden gehamerd; de pagina ververst zelf elke minuut.
@@ -180,10 +180,10 @@ cryptodokter/
     poort (index, JSON-endpoints, 404, offline-pad, cache). **Totaal 61 groen.**
   - **Live gevalideerd**: alle endpoints geven 200 met echte data
     (radar ~13s koud, daarna direct uit cache).
-- **Volgende stap (suggesties)**: publiek hosten van `cryptodokter.nl`
-  (reverse proxy + HTTPS), alerts (mail/Telegram) bij een hoge radarscore, en
-  de paper-bot periodiek draaien (cron/launchd) zodat er echte trackrecord
-  ontstaat vóór er ooit echt geld in gaat.
+  - **Volgende stap (suggesties)**: publiek hosten van `cryptodokter.nl`
+    (reverse proxy + HTTPS), alerts (mail/Telegram) bij een hoge radarscore, en
+    de paper-bot periodiek draaien (cron/launchd) zodat er echte trackrecord
+    ontstaat vóór er ooit echt geld in gaat.
 - **[jcode, sep 2026] Handoff voor Grok + context-dump:**
   - `docs/HANDOFF-GROK.md`: handoff toegespitst op SuperGrok (chat, geen API-key).
     Bevat het exacte antwoordformaat dat `radar/grok.py::parse()` accepteert,
@@ -223,7 +223,6 @@ cryptodokter/
 - Overgeslagen: Blockworks/The Defiant (403), cryptoinside.nl (dood/te koop),
   meeste NL-kandidaten (404/SSL/HTML).
 - tests/test_news_watchers.py: asserts op nieuwe ids (≥50 feeds).
-- search() contract ongewijzigd (google/bing/watchers/total/newest).
 
 [CryptoDokter.nl, 2026-09-09] TREND_FEEDS 51 → 56 (+5, Newsbronnen gevalideerd):
 - NL: beincrypto-nl.
@@ -238,7 +237,7 @@ cryptodokter/
 [CryptoDokter Newsbronnen, 2026-09-10] TREND_FEEDS 59 → 66 (+7):
 - NL: crypto-gids.
 - Intl: coinpaper, ledger-insights, techcrunch-crypto, finextra-blockchain, arbitrum, vitalik.
-- Alleen HTTP 200 + ElementTree-parsebaar (project-UA). Fail-open blijft.
+- Alleen HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
 - Overgeslagen: Blockworks/The Defiant/Kraken/Solana (403), DL News/CryptoPolitan/NullTX (kapotte CDATA),
   captainaltcoin (flaky), categorie-feeds van al aanwezige sites, cryptoinside.nl.
 - tests/test_news_watchers.py: asserts crypto-gids/coinpaper/vitalik (≥65).
@@ -251,14 +250,13 @@ cryptodokter/
   captainaltcoin, a16zcrypto, optimism, 99bitcoins, nftnow, mit-tech-blockchain).
 - Geen nieuwe NL. cryptoinside.nl niet gebruikt.
 - tests: asserts hackernoon-crypto/cryptoadventure/wu-blockchain (≥69).
-- search() contract ongewijzigd.
 
 
 [CryptoDokter Newsbronnen, 2026-09-15] TREND_FEEDS 107 → 116 (+9):
 - NL: bitcoin-nl.
 - Intl: dlnews, ethereum-blog, rocketpool, gmx, gains-network, maker-forum, defirate, optimism.
 - Focus: early DeFi/perps/governance/prediction-markets + NL Bitcoin-first.
-- Alleen HTTP 200 + ElementTree-parsebaar (project-UA). Fail-open blijft.
+- Alleen HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
 - Overgeslagen: base (Mirror 429 op recheck), thedefiant/blockworks (403), messari (geen public RSS), cryptoinside.nl, affiliate/spam (bitcoinspot/cryptopolitan/nulltx).
 - tests/test_news_watchers.py: asserts nieuwe ids (≥115).
 - search() contract ongewijzigd.
@@ -270,7 +268,22 @@ cryptodokter/
 - MEV/gov: flashbots, aave-gov.
 - DE/prediction: blocktrainer, polymarket-news.
 - Focus: early research + Solana DeFi + restaking + governance + prediction-markets.
-- Alleen HTTP 200 + ElementTree-parsebaar (project-UA). Fail-open blijft.
 - Overgeslagen: beincrypto-de (overlap beincrypto/beincrypto-nl), cryptoinside.nl.
 - tests/test_news_watchers.py: asserts nieuwe ids (≥124).
+- search() contract ongewijzigd.
+
+
+[CryptoDokter Newsbronnen, 2026-09-21] TREND_FEEDS 125 → 132 (+7 ronde 2):
+- lido-research, compound-gov, tokenpost, einundzwanzig, bitcoinbasis, uniswap-gov, frax.
+- Focus: research/gov/DE/stablecoin early signals.
+- Alleen HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
+- tests sync volgt in 132→135 push.
+
+[CryptoDokter Newsbronnen, 2026-09-21] TREND_FEEDS 132 → 135 (+3):
+- thedefiant (DeFi-native; was 403, nu parsebaar), placeholder (VC/Solana research),
+  thorchain (cross-chain app-layer).
+- Focus: early DeFi + VC lens + cross-chain.
+- Overgeslagen: bitcoinspot (affiliate), cryptonews-flash (news-overlap),
+  blockworks/paradigm/jito (403), cryptoinside.nl.
+- tests/test_news_watchers.py: asserts ≥134 + nieuwe ids.
 - search() contract ongewijzigd.

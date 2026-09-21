@@ -165,6 +165,11 @@ TREND_FEEDS: dict[str, str] = {
     "bitcoinbasis": "https://bitcoinbasis.de/feed/",
     "uniswap-gov": "https://gov.uniswap.org/latest.rss",
     "frax": "https://fraxfinance.substack.com/feed",
+
+    # DeFi news / VC / cross-chain (Newsbronnen 2026-09-21 10:28)
+    "thedefiant": "https://thedefiant.io/feed",
+    "placeholder": "https://www.placeholder.vc/blog?format=rss",
+    "thorchain": "https://medium.com/feed/thorchain",
 }
 
 
