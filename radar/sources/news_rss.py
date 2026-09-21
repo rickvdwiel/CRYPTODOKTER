@@ -145,6 +145,17 @@ TREND_FEEDS: dict[str, str] = {
     "maker-forum": "https://forum.makerdao.com/latest.rss",
     "defirate": "https://defirate.com/feed/",
     "optimism": "https://optimism.mirror.xyz/feed/atom",
+
+    # Research / Solana / restaking / gov / DE / prediction (Newsbronnen 2026-09-21)
+    "coinmetrics": "https://coinmetrics.substack.com/feed",
+    "meteora": "https://meteoraag.medium.com/feed",
+    "etherfi": "https://etherfi.medium.com/feed",
+    "variant": "https://variantfund.substack.com/feed",
+    "electriccapital": "https://electriccapital.substack.com/feed",
+    "flashbots": "https://collective.flashbots.net/latest.rss",
+    "aave-gov": "https://governance.aave.com/latest.rss",
+    "blocktrainer": "https://www.blocktrainer.de/feed/",
+    "polymarket-news": "https://news.polymarket.com/feed",
 }
 
 
