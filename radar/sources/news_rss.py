@@ -170,6 +170,9 @@ TREND_FEEDS: dict[str, str] = {
     "thedefiant": "https://thedefiant.io/feed",
     "placeholder": "https://www.placeholder.vc/blog?format=rss",
     "thorchain": "https://medium.com/feed/thorchain",
+
+    # NL exchange blog (Titan 2026-09-21)
+    "btcdirect": "https://blog.btcdirect.eu/feed/",
 }
 
 
