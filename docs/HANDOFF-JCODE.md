@@ -59,7 +59,7 @@ python -m radar.run_radar --watchlist
 ```
 cryptodokter/
 ├── README.md                  # uitleg + SuperGrok-workflow
-├── requirements.txt          # lichte deps (requests, bs4)  — ccxt OPTIONEEL
+├── requirements.txt           # lichte deps (requests, bs4)  — ccxt OPTIONEEL
 ├── .gitignore
 ├── docs/
 │   ├── ARCHITECTURE.md        # fasenplan: radar → paper-bot → website
@@ -168,13 +168,11 @@ cryptodokter/
   - **Live gevalideerd**: PEPE-EUR 1h/1000 candles → 2 trades, +€2,16;
     BTC-EUR 4h/500 → 1 trade, -€0,47. De engine geeft ook winrate en exit-redenen.
   - `tests/test_backtest.py`: 14 tests (breakout, alle exit-regels, kosten,
-    stats, netwerkfout). **Totaal nu 50 tests groen.**
+    stats, netwerkfout). **Totaal 50 tests groen.**
 - **[jcode, sep 2026] Fase 3 — dashboard voor cryptodokter.nl staat:**
   - `web/server.py`: HTTP-server op alléén de standaardbibliotheek (geen Flask).
     `python -m web.server` → http://127.0.0.1:8000 (`--host/--port` beschikbaar).
-  - Endpoints: `/` (dark-mode dashboard), `/api/portfolio`, `/api/radar`,
-    `/api/watchlist`, `/api/health`. Antwoorden 5 minuten gecachet zodat de
-    gratis bronnen niet worden gehamerd; de pagina ververst zelf elke minuut.
+  - Endpoints: `/` (dark-mode dashboard), `/api/portfolio`, `/api/radar`, `/api/watchlist`, `/api/health`. Antwoorden 5 minuten gecachet zodat de gratis bronnen niet worden gehamerd; de pagina ververst zelf elke minuut.
   - Toont papieren portefeuille (waarde, rendement, posities met P&L),
     radar-kandidaten met score/liquiditeit/risico-label + chartlink, en de
     watchlist. Alleen lezen: het dashboard kan niets kopen of verkopen.
@@ -263,4 +261,16 @@ cryptodokter/
 - Alleen HTTP 200 + ElementTree-parsebaar (project-UA). Fail-open blijft.
 - Overgeslagen: base (Mirror 429 op recheck), thedefiant/blockworks (403), messari (geen public RSS), cryptoinside.nl, affiliate/spam (bitcoinspot/cryptopolitan/nulltx).
 - tests/test_news_watchers.py: asserts nieuwe ids (≥115).
+- search() contract ongewijzigd.
+
+
+[CryptoDokter Newsbronnen, 2026-09-21] TREND_FEEDS 116 → 125 (+9):
+- Research/VC: coinmetrics, variant, electriccapital.
+- Solana/restaking: meteora, etherfi.
+- MEV/gov: flashbots, aave-gov.
+- DE/prediction: blocktrainer, polymarket-news.
+- Focus: early research + Solana DeFi + restaking + governance + prediction-markets.
+- Alleen HTTP 200 + ElementTree-parsebaar (project-UA). Fail-open blijft.
+- Overgeslagen: beincrypto-de (overlap beincrypto/beincrypto-nl), cryptoinside.nl.
+- tests/test_news_watchers.py: asserts nieuwe ids (≥124).
 - search() contract ongewijzigd.
