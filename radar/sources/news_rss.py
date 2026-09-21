@@ -156,6 +156,15 @@ TREND_FEEDS: dict[str, str] = {
     "aave-gov": "https://governance.aave.com/latest.rss",
     "blocktrainer": "https://www.blocktrainer.de/feed/",
     "polymarket-news": "https://news.polymarket.com/feed",
+
+    # Research / gov / DE / DeFi (Newsbronnen 2026-09-21 ronde 2)
+    "lido-research": "https://research.lido.fi/latest.rss",
+    "compound-gov": "https://www.comp.xyz/latest.rss",
+    "tokenpost": "https://tokenpost.com/rss",
+    "einundzwanzig": "https://einundzwanzig.space/feed.xml",
+    "bitcoinbasis": "https://bitcoinbasis.de/feed/",
+    "uniswap-gov": "https://gov.uniswap.org/latest.rss",
+    "frax": "https://fraxfinance.substack.com/feed",
 }
 
 
