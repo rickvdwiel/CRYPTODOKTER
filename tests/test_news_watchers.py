@@ -74,7 +74,16 @@ class TestTrendWatchers(unittest.TestCase):
         self.assertIn("maker-forum", names)
         self.assertIn("defirate", names)
         self.assertIn("optimism", names)
-        self.assertGreaterEqual(len(feeds), 115)  # was 107, +9 → 116
+        self.assertIn("coinmetrics", names)
+        self.assertIn("meteora", names)
+        self.assertIn("etherfi", names)
+        self.assertIn("variant", names)
+        self.assertIn("electriccapital", names)
+        self.assertIn("flashbots", names)
+        self.assertIn("aave-gov", names)
+        self.assertIn("blocktrainer", names)
+        self.assertIn("polymarket-news", names)
+        self.assertGreaterEqual(len(feeds), 124)  # was 116, +9 → 125
         self.assertTrue(all(f["url"].startswith("http") for f in feeds))
 
 
