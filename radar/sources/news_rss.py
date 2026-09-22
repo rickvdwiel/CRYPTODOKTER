@@ -187,6 +187,20 @@ TREND_FEEDS: dict[str, str] = {
     "ethereum-magicians": "https://ethereum-magicians.org/latest.rss",
     "morpho": "https://medium.com/feed/morpho-labs",
     "manifold": "https://news.manifold.markets/feed",
+
+    # Privacy / NL L1 / gov / Solana infra / bridge / research (Newsbronnen 2026-09-22 ronde 2)
+    "aztec": "https://medium.com/feed/aztec-protocol",
+    "dusk": "https://medium.com/feed/dusk-network",
+    "op-gov": "https://gov.optimism.io/latest.rss",
+    "arbitrum-gov": "https://forum.arbitrum.foundation/latest.rss",
+    "eigenlayer-gov": "https://forum.eigenlayer.xyz/latest.rss",
+    "helius": "https://www.helius.dev/blog/rss.xml",
+    "across": "https://medium.com/feed/across-protocol",
+    "starknet-gov": "https://community.starknet.io/latest.rss",
+    "scroll-gov": "https://forum.scroll.io/latest.rss",
+    "ens-gov": "https://discuss.ens.domains/latest.rss",
+    "frax-gov": "https://gov.frax.finance/latest.rss",
+    "blockworks": "https://blockworks.com/feed",
 }
 
 
