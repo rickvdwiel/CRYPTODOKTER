@@ -305,3 +305,15 @@ cryptodokter/
   locale/family overlaps, cryptoinside.nl.
 - tests/test_news_watchers.py: asserts nieuwe ids (≥147).
 - search() contract ongewijzigd.
+
+[CryptoDokter Newsbronnen, 2026-09-22] TREND_FEEDS 148 → 160 (+12 ronde 2):
+- Privacy/NL: aztec, dusk.
+- Gov: op-gov, arbitrum-gov, eigenlayer-gov, starknet-gov, scroll-gov, ens-gov, frax-gov.
+- Infra/bridge/news: helius (blog RSS nu OK; eerder 403), across, blockworks (was 403, nu OK).
+- Focus: L2/DAO governance early signals + privacy L2 + NL L1 RWA + Solana infra.
+- Alleen HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
+- Overgeslagen: bitvavo/1kx (dood), Mirror/Paragraph 429 (base/linea/zora/taiko),
+  chainlink/near/mantle (HTML/404), airdropalert (affiliate), solana-forum (scam-noise),
+  polygon-gov (spam), paradigm/messari (te dun/marketing), cryptoinside.nl.
+- tests/test_news_watchers.py: asserts nieuwe ids (≥159).
+- search() contract ongewijzigd.
