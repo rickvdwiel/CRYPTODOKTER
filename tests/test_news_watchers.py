@@ -93,7 +93,20 @@ class TestTrendWatchers(unittest.TestCase):
         self.assertIn("thedefiant", names)
         self.assertIn("placeholder", names)
         self.assertIn("thorchain", names)
-        self.assertGreaterEqual(len(feeds), 134)  # was 125, +7 ronde2, +3 → 135
+        self.assertIn("btcdirect", names)
+        self.assertIn("iota", names)
+        self.assertIn("dydx-gov", names)
+        self.assertIn("krypto-magazin", names)
+        self.assertIn("bitcoin-optech", names)
+        self.assertIn("week-in-ethereum", names)
+        self.assertIn("scroll", names)
+        self.assertIn("zksync-blog", names)
+        self.assertIn("sky-forum", names)
+        self.assertIn("safe-gov", names)
+        self.assertIn("ethereum-magicians", names)
+        self.assertIn("morpho", names)
+        self.assertIn("manifold", names)
+        self.assertGreaterEqual(len(feeds), 147)  # 136 + 12 → 148
         self.assertTrue(all(f["url"].startswith("http") for f in feeds))
 
 
