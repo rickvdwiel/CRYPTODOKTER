@@ -106,7 +106,19 @@ class TestTrendWatchers(unittest.TestCase):
         self.assertIn("ethereum-magicians", names)
         self.assertIn("morpho", names)
         self.assertIn("manifold", names)
-        self.assertGreaterEqual(len(feeds), 147)  # 136 + 12 → 148
+        self.assertIn("aztec", names)
+        self.assertIn("dusk", names)
+        self.assertIn("op-gov", names)
+        self.assertIn("arbitrum-gov", names)
+        self.assertIn("eigenlayer-gov", names)
+        self.assertIn("helius", names)
+        self.assertIn("across", names)
+        self.assertIn("starknet-gov", names)
+        self.assertIn("scroll-gov", names)
+        self.assertIn("ens-gov", names)
+        self.assertIn("frax-gov", names)
+        self.assertIn("blockworks", names)
+        self.assertGreaterEqual(len(feeds), 159)  # 148 + 12 → 160
         self.assertTrue(all(f["url"].startswith("http") for f in feeds))
 
 
