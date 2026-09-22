@@ -287,3 +287,21 @@ cryptodokter/
   blockworks/paradigm/jito (403), cryptoinside.nl.
 - tests/test_news_watchers.py: asserts ≥134 + nieuwe ids.
 - search() contract ongewijzigd.
+
+[CryptoDokter Newsbronnen, 2026-09-21] TREND_FEEDS 135 → 136 (+1):
+- btcdirect (NL exchange blog).
+- Commit 15cb9cd.
+
+[CryptoDokter Newsbronnen, 2026-09-22] TREND_FEEDS 136 → 148 (+12):
+- Spares re-validated: iota, dydx-gov, krypto-magazin.
+- Research: bitcoin-optech, week-in-ethereum, ethereum-magicians.
+- L2/eco: scroll, zksync-blog.
+- Gov: sky-forum, safe-gov.
+- DeFi/prediction: morpho, manifold.
+- Focus: early research + governance + L2 + DE niche + prediction-markets.
+- Alleen HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
+- Overgeslagen: bitvavo (404/HTML), 1kx (403), defillama-research (HTML),
+  jito/helius (403), Mirror 429 (linea/taiko/kamino/berachain), fuel/gnosis-stale,
+  locale/family overlaps, cryptoinside.nl.
+- tests/test_news_watchers.py: asserts nieuwe ids (≥147).
+- search() contract ongewijzigd.
