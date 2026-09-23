@@ -170,5 +170,17 @@
   "jito-gov": "https://forum.jito.network/latest.rss",
   "bitmymoney": "https://blog.bitmymoney.com/rss/",
   "aztec-forum": "https://forum.aztec.network/latest.rss",
-  "cow-gov": "https://forum.cow.fi/latest.rss"
+  "cow-gov": "https://forum.cow.fi/latest.rss",
+  "zksync-gov": "https://forum.zknation.io/latest.rss",
+  "cosmos-gov": "https://forum.cosmos.network/latest.rss",
+  "polkadot-gov": "https://forum.polkadot.network/latest.rss",
+  "succinct": "https://blog.succinct.xyz/feed",
+  "pyth-gov": "https://forum.pyth.network/latest.rss",
+  "sui-gov": "https://forums.sui.io/latest.rss",
+  "celestia-gov": "https://forum.celestia.org/latest.rss",
+  "osmosis-gov": "https://forum.osmosis.zone/latest.rss",
+  "gmx-gov": "https://gov.gmx.io/latest.rss",
+  "slowmist": "https://slowmist.medium.com/feed",
+  "gearbox": "https://blog.gearbox.fi/rss",
+  "usual-gov": "https://forum.usual.money/latest.rss"
 }
