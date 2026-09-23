@@ -2,12 +2,16 @@
 
 Gratis, zonder auth. Fail-open: kapotte feeds geven lege lijsten, geen crash.
 cryptoinside.nl is dood (te koop); we gebruiken crypto-insiders.nl i.p.v.
+
+TREND_FEEDS wordt geladen uit trend_feeds.json (zelfde map).
 """
 from __future__ import annotations
 
+import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -18,24 +22,20 @@ from radar import config
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
 
-# Trendwatchers — alleen feeds die live RSS teruggeven (gescreend sep 2026).
-# Naam → URL. Bij uitval: fail-open.
-TREND_FEEDS: dict[str, str] = {
-    "newsbit": "https://newsbit.nl/feed/",
-    "crypto-insiders": "https://crypto-insiders.nl/feed/",
-    "l2beat-gov": "https://l2beatgov.substack.com/feed",
-    "delving-bitcoin": "https://delvingbitcoin.org/latest.rss",
-    "bitcoin-dev": "https://mailing-list.bitcoindevs.xyz/bitcoindev/atom.xml",
-    "b10c": "https://b10c.me/feed.xml",
-    "openzeppelin": "https://blog.openzeppelin.com/rss.xml",
-    "monero": "https://www.getmonero.org/feed.xml",
-    "zcash": "https://electriccoin.co/feed/",
-    "joncharbonneau": "https://joncharbonneau.substack.com/feed",
-    "jito-gov": "https://forum.jito.network/latest.rss",
-    "bitmymoney": "https://blog.bitmymoney.com/rss/",
-    "aztec-forum": "https://forum.aztec.network/latest.rss",
-    "cow-gov": "https://forum.cow.fi/latest.rss",
-}
+
+def _load_trend_feeds() -> dict[str, str]:
+    """Laad TREND_FEEDS uit trend_feeds.json; fail-open → {}."""
+    try:
+        p = Path(__file__).with_name("trend_feeds.json")
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
+    except Exception:
+        return {}
+
+
+# Trendwatchers — gescreend sep 2026. Bij uitval: fail-open.
+TREND_FEEDS: dict[str, str] = _load_trend_feeds()
+
 
 def _parse_rss(xml_bytes: bytes, max_items: int) -> list[dict]:
     try:
@@ -50,56 +50,80 @@ def _parse_rss(xml_bytes: bytes, max_items: int) -> list[dict]:
         items.append({"title": title, "link": link, "pubDate": pub})
         if len(items) >= max_items:
             break
+    # Atom fallback (sommige feeds)
     if not items:
         ns = {"a": "http://www.w3.org/2005/Atom"}
         for entry in root.findall(".//a:entry", ns) or root.findall(".//{http://www.w3.org/2005/Atom}entry"):
-            title = (entry.findtext("{http://www.w3.org/2005/Atom}title") or entry.findtext("title") or "")
+            title = (entry.findtext("{http://www.w3.org/2005/Atom}title")
+                     or entry.findtext("title") or "")
             link_el = entry.find("{http://www.w3.org/2005/Atom}link")
-            link = link_el.attrib.get("href") or "" if link_el is not None else ""
-            pub = (entry.findtext("{http://www.w3.org/2005/Atom}updated") or entry.findtext("{http://www.w3.org/2005/Atom}published") or "")
+            link = ""
+            if link_el is not None:
+                link = link_el.attrib.get("href") or ""
+            pub = (entry.findtext("{http://www.w3.org/2005/Atom}updated")
+                   or entry.findtext("{http://www.w3.org/2005/Atom}published") or "")
             items.append({"title": title, "link": link, "pubDate": pub})
             if len(items) >= max_items:
                 break
     return items
+
 
 def _fetch_url(url: str, params: Optional[dict] = None) -> bytes:
     r = requests.get(url, params=params, headers={"User-Agent": UA}, timeout=12)
     r.raise_for_status()
     return r.content
 
+
 def google_news(query: str, max_items: int | None = None) -> list[dict]:
     max_items = max_items or config.NEWS_MAX_ITEMS
+    url = "https://news.google.com/rss/search"
+    params = {"q": query, "hl": "nl", "gl": "NL", "ceid": "NL:nl"}
     try:
-        return _parse_rss(_fetch_url("https://news.google.com/rss/search", {"q": query, "hl": "nl", "gl": "NL", "ceid": "NL:nl"}), max_items)
+        return _parse_rss(_fetch_url(url, params), max_items)
     except requests.RequestException:
         return []
+
 
 def bing_news(query: str, max_items: int | None = None) -> list[dict]:
     max_items = max_items or config.NEWS_MAX_ITEMS
+    url = "https://www.bing.com/news/search"
+    params = {"q": query, "format": "rss"}
     try:
-        return _parse_rss(_fetch_url("https://www.bing.com/news/search", {"q": query, "format": "rss"}), max_items)
+        return _parse_rss(_fetch_url(url, params), max_items)
     except requests.RequestException:
         return []
 
+
 def _matches_query(title: str, query: str) -> bool:
+    """Simpele token-match in titel (case-insensitive)."""
     q = (query or "").strip()
     if not q or not title:
         return False
     t = title.casefold()
     parts = [q] + [p for p in q.replace("-", " ").split() if len(p) >= 3]
-    return any(p.casefold() in t for p in parts)
+    for p in parts:
+        if p.casefold() in t:
+            return True
+    return False
+
 
 def fetch_feed(name: str, url: str, max_items: int = 40) -> list[dict]:
+    """Haal één trendwatcher-feed op. Fail-open → []."""
     try:
         items = _parse_rss(_fetch_url(url), max_items)
         for it in items:
             it["source"] = name
-            it["host"] = urlparse(it.get("link") or url).netloc
+            host = urlparse(it.get("link") or url).netloc
+            it["host"] = host
         return items
+    except requests.RequestException:
+        return []
     except Exception:
         return []
 
+
 def trend_watchers(query: str, max_per_feed: int | None = None) -> dict[str, list[dict]]:
+    """Scan alle TREND_FEEDS; houd items waarvan de titel bij de query past."""
     max_per_feed = max_per_feed or config.NEWS_MAX_ITEMS
     out: dict[str, list[dict]] = {}
     for name, url in TREND_FEEDS.items():
@@ -111,6 +135,7 @@ def trend_watchers(query: str, max_per_feed: int | None = None) -> dict[str, lis
                     break
         out[name] = hits
     return out
+
 
 def _latest_ts(items: list[dict]) -> Optional[datetime]:
     best = None
@@ -129,14 +154,24 @@ def _latest_ts(items: list[dict]) -> Optional[datetime]:
             best = dt
     return best
 
+
 def search(query: str, max_items: int | None = None) -> dict:
+    """Return google/bing/watchers + total/newest. Contract blijft compatibel."""
     max_items = max_items or config.NEWS_MAX_ITEMS
     g = google_news(query, max_items)
     b = bing_news(query, max_items)
     w = trend_watchers(query, max_per_feed=max_items)
     flat_w = [it for hits in w.values() for it in hits]
     newest = _latest_ts(g + b + flat_w)
-    return {"google": g, "bing": b, "watchers": w, "total": len(g) + len(b) + len(flat_w), "newest": newest.isoformat() if newest else ""}
+    return {
+        "google": g,
+        "bing": b,
+        "watchers": w,
+        "total": len(g) + len(b) + len(flat_w),
+        "newest": newest.isoformat() if newest else "",
+    }
+
 
 def list_feeds() -> list[dict]:
+    """Handig voor CLI/docs: welke watchers staan erin."""
     return [{"name": n, "url": u} for n, u in TREND_FEEDS.items()]
