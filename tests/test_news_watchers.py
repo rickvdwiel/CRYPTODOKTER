@@ -57,7 +57,19 @@ class TestTrendWatchers(unittest.TestCase):
         self.assertIn("bitmymoney", names)
         self.assertIn("aztec-forum", names)
         self.assertIn("cow-gov", names)
-        self.assertGreaterEqual(len(feeds), 171)  # 160 + 12 → 172
+        self.assertIn("zksync-gov", names)
+        self.assertIn("cosmos-gov", names)
+        self.assertIn("polkadot-gov", names)
+        self.assertIn("succinct", names)
+        self.assertIn("pyth-gov", names)
+        self.assertIn("sui-gov", names)
+        self.assertIn("celestia-gov", names)
+        self.assertIn("osmosis-gov", names)
+        self.assertIn("gmx-gov", names)
+        self.assertIn("slowmist", names)
+        self.assertIn("gearbox", names)
+        self.assertIn("usual-gov", names)
+        self.assertGreaterEqual(len(feeds), 183)  # 172 + 12 → 184
         self.assertTrue(all(f["url"].startswith("http") for f in feeds))
 
 
