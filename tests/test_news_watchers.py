@@ -13,7 +13,6 @@ class TestMatchQuery(unittest.TestCase):
         self.assertFalse(news_rss._matches_query("Bitcoin ETF nieuws", "PONS"))
 
     def test_korte_tokens_niet_als_los_woord(self):
-        # 'ai' < 3 tekens wordt niet als los token gematcht, wel als hele query
         self.assertTrue(news_rss._matches_query("AI agents op Solana", "AI"))
 
 
