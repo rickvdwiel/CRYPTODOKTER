@@ -333,3 +333,15 @@ cryptodokter/
   allesovercrypto/satoshi-radio (geen publieke RSS), cryptoinside.nl.
 - tests/test_news_watchers.py: asserts ≥171 + nieuwe ids.
 - search() contract ongewijzigd.
+
+[CryptoDokter Newsbronnen, 2026-09-23] TREND_FEEDS 172 → 184 (+12 ronde 2):
+- Gov (L2/app-chain/oracle): zksync-gov, cosmos-gov, polkadot-gov, pyth-gov, sui-gov, celestia-gov, osmosis-gov, gmx-gov, usual-gov.
+- ZK infra: succinct.
+- Security/DeFi: slowmist, gearbox.
+- Focus: early DAO/gov + ZK proving + threat-intel + leverage DeFi + microcap stablecoin gov.
+- Alleen HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
+- Overgeslagen: NL bitcoindaily/cryptonic/acrypto/dagelijkscrypto (404/403/HTML), bitcoinspot/cryptokopen (affiliate),
+  kraken-blog (403 flaky), Mirror 429 (base/linea/ethena), gauntlet/tokenterminal/maple (stale 2022-23),
+  solana-forum (scam-noise), paradigm/messari/rekt (403/404), cryptoinside.nl.
+- tests/test_news_watchers.py: asserts ≥183 + nieuwe ids.
+- search() contract ongewijzigd.
