@@ -317,3 +317,19 @@ cryptodokter/
   polygon-gov (spam), paradigm/messari (te dun/marketing), cryptoinside.nl.
 - tests/test_news_watchers.py: asserts nieuwe ids (≥159).
 - search() contract ongewijzigd.
+
+[CryptoDokter Newsbronnen, 2026-09-23] TREND_FEEDS 160 → 172 (+12):
+- Research/gov: l2beat-gov, joncharbonneau.
+- BTC protocol: delving-bitcoin, bitcoin-dev, b10c.
+- Security/privacy: openzeppelin, monero, zcash, aztec-forum.
+- Solana/DeFi gov: jito-gov, cow-gov.
+- NL: bitmymoney.
+- Focus: early protocol research + privacy L1/L2 + L2/DAO gov + NL exchange blog.
+- Data: `radar/sources/trend_feeds.json` (172 ids); `news_rss.py` laadt via `_load_trend_feeds()` (fail-open).
+- Commits: c2b671ee (trend_feeds.json), 063cbddd (news_rss loader), 5936a0b5 (tests).
+- Alleen HTTP 200 + ElementTree-parsebare items (project-UA). Fail-open blijft.
+- Overgeslagen: paradigm/messari/defillama-research (403/HTML), Mirror 429 (base/linea/zora/taiko),
+  solana-forum/polygon-gov/airdropalert (noise/spam/affiliate), bitvavo/1kx/crystal (dood/403),
+  allesovercrypto/satoshi-radio (geen publieke RSS), cryptoinside.nl.
+- tests/test_news_watchers.py: asserts ≥171 + nieuwe ids.
+- search() contract ongewijzigd.
