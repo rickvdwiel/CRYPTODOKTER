@@ -69,7 +69,19 @@ class TestTrendWatchers(unittest.TestCase):
         self.assertIn("slowmist", names)
         self.assertIn("gearbox", names)
         self.assertIn("usual-gov", names)
-        self.assertGreaterEqual(len(feeds), 183)  # 172 + 12 → 184
+        self.assertIn("crypto-nl", names)
+        self.assertIn("asymmetric", names)
+        self.assertIn("citrea", names)
+        self.assertIn("stacks", names)
+        self.assertIn("mezo", names)
+        self.assertIn("berachain-gov", names)
+        self.assertIn("near-gov", names)
+        self.assertIn("mantle-gov", names)
+        self.assertIn("yearn-gov", names)
+        self.assertIn("gnosis-gov", names)
+        self.assertIn("kaia-gov", names)
+        self.assertIn("rocketpool-gov", names)
+        self.assertGreaterEqual(len(feeds), 195)  # 184 + 12 → 196
         self.assertTrue(all(f["url"].startswith("http") for f in feeds))
 
 
