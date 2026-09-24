@@ -182,5 +182,17 @@
   "gmx-gov": "https://gov.gmx.io/latest.rss",
   "slowmist": "https://slowmist.medium.com/feed",
   "gearbox": "https://blog.gearbox.fi/rss",
-  "usual-gov": "https://forum.usual.money/latest.rss"
+  "usual-gov": "https://forum.usual.money/latest.rss",
+  "crypto-nl": "https://nieuws.crypto.nl/feed/",
+  "asymmetric": "https://blog.asymmetric.re/rss/",
+  "citrea": "https://blog.citrea.xyz/rss",
+  "stacks": "https://blog.stacks.co/rss.xml",
+  "mezo": "https://blog.mezo.org/rss",
+  "berachain-gov": "https://forum.berachain.com/latest.rss",
+  "near-gov": "https://gov.near.org/latest.rss",
+  "mantle-gov": "https://forum.mantle.xyz/latest.rss",
+  "yearn-gov": "https://gov.yearn.fi/latest.rss",
+  "gnosis-gov": "https://forum.gnosis.io/latest.rss",
+  "kaia-gov": "https://govforum.kaia.io/latest.rss",
+  "rocketpool-gov": "https://dao.rocketpool.net/latest.rss"
 }
